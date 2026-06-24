@@ -57,6 +57,67 @@
   border-color: transparent;
 }
 
+.difficulty-card {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 14px;
+  border-radius: 22px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(15, 23, 42, 0.72);
+  padding: 16px;
+  margin-bottom: 18px;
+}
+
+.difficulty-card h2 {
+  color: #eff6ff;
+  margin-bottom: 4px;
+}
+
+.small {
+  font-size: 0.92rem;
+}
+
+.difficulty-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.difficulty-pill {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 150px;
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: rgba(15, 23, 42, 0.9);
+  color: #e2e8f0;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.2s ease, background 0.2s ease;
+}
+
+.difficulty-pill:hover {
+  transform: translateY(-1px);
+  border-color: #38bdf8;
+}
+
+.difficulty-pill.active {
+  border-color: #38bdf8;
+  background: linear-gradient(145deg, rgba(14, 165, 233, 0.15), rgba(37, 99, 235, 0.18));
+}
+
+.difficulty-pill strong {
+  color: #eff6ff;
+}
+
+.difficulty-pill span {
+  color: #cbd5e1;
+  font-size: 0.9rem;
+}
+
 .stats-row {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -173,5 +234,11 @@
   .footer-bar {
     flex-direction: column;
     align-items: flex-start;
+  }
+}
+
+@media (max-width: 760px) {
+  .difficulty-pill {
+    width: 100%;
   }
 }

@@ -1,0 +1,23 @@
+name = "battleship"
+main = "src/main.jsx"
+compatibility_date = "2024-01-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "battleship-db"
+database_id = "66641c4e-91f1-46c4-90b6-2fa2bb08ea6c"
+
+[env.production]
+routes = [
+  { pattern = "example.com", zone_name = "example.com" }
+]
+
+[build]
+command = "npm run build"
+cwd = "./"
+watch_paths = ["src/**"]
+
+[[migrations]]
+tag = "v1"
+new = true
+path = "migrations/0001_create_users_table.sql"

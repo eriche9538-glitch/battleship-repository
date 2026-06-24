@@ -1,0 +1,5 @@
+[[d1_databases]]
+
+binding = "DB"
+database_name = "battleship-db"
+database_id = "66641c4e-91f1-46c4-90b6-2fa2bb08ea6c"

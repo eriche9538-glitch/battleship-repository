@@ -1,8 +1,14 @@
 import { useState } from 'react'
 import './App.css'
+import SignUp from './SignUp'
 
 const GRID_SIZE = 10
 const SHIP_SIZES = [5, 4, 3, 3, 2]
+const DIFFICULTY_OPTIONS = {
+  easy: { label: 'Easy', description: 'Random shots and a slower enemy.', delay: 320 },
+  medium: { label: 'Medium', description: 'Targets nearby hits more often.', delay: 430 },
+  master: { label: 'Master', description: 'Aggressive, hunt-and-target attacks.', delay: 550 },
+}
 
 function createEmptyBoard() {
   return Array.from({ length: GRID_SIZE }, () => Array(GRID_SIZE).fill('water'))
@@ -59,7 +65,73 @@ function isFleetSunk(layout, board) {
   return true
 }
 
-function createGameState() {
+function getNeighbors(row, col) {
+  const neighbors = []
+
+  for (let deltaRow = -1; deltaRow <= 1; deltaRow += 1) {
+    for (let deltaCol = -1; deltaCol <= 1; deltaCol += 1) {
+      if (deltaRow === 0 && deltaCol === 0) {
+        continue
+      }
+
+      if (Math.abs(deltaRow) === Math.abs(deltaCol)) {
+        continue
+      }
+
+      const nextRow = row + deltaRow
+      const nextCol = col + deltaCol
+
+      if (nextRow >= 0 && nextRow < GRID_SIZE && nextCol >= 0 && nextCol < GRID_SIZE) {
+        neighbors.push([nextRow, nextCol])
+      }
+    }
+  }
+
+  return neighbors
+}
+
+function chooseEnemyShot(playerBoard, difficulty) {
+  const availableShots = []
+
+  for (let row = 0; row < GRID_SIZE; row += 1) {
+    for (let col = 0; col < GRID_SIZE; col += 1) {
+      if (playerBoard[row][col] !== 'hit' && playerBoard[row][col] !== 'miss') {
+        availableShots.push([row, col])
+      }
+    }
+  }
+
+  if (availableShots.length === 0) {
+    return null
+  }
+
+  if (difficulty !== 'easy') {
+    const hitCells = []
+
+    for (let row = 0; row < GRID_SIZE; row += 1) {
+      for (let col = 0; col < GRID_SIZE; col += 1) {
+        if (playerBoard[row][col] === 'hit') {
+          hitCells.push([row, col])
+        }
+      }
+    }
+
+    if (hitCells.length > 0 && (difficulty === 'master' || Math.random() < 0.75)) {
+      const [hitRow, hitCol] = hitCells[Math.floor(Math.random() * hitCells.length)]
+      const candidates = getNeighbors(hitRow, hitCol).filter(([row, col]) => {
+        return playerBoard[row][col] !== 'hit' && playerBoard[row][col] !== 'miss'
+      })
+
+      if (candidates.length > 0) {
+        return candidates[Math.floor(Math.random() * candidates.length)]
+      }
+    }
+  }
+
+  return availableShots[Math.floor(Math.random() * availableShots.length)]
+}
+
+function createGameState(difficulty = 'medium') {
   const playerFleet = createFleetBoard()
   const enemyFleet = createFleetBoard()
 
@@ -68,13 +140,16 @@ function createGameState() {
     enemyLayout: enemyFleet.board,
     playerBoard: playerFleet.board.map((row) => [...row]),
     enemyBoard: createEmptyBoard(),
-    status: 'Your turn. Choose a square on the enemy grid.',
+    difficulty,
+    status: `Level: ${DIFFICULTY_OPTIONS[difficulty].label}. Your turn. Choose a square on the enemy grid.`,
     winner: null,
   }
 }
 
 function App() {
-  const [game, setGame] = useState(createGameState)
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [difficulty, setDifficulty] = useState('medium')
+  const [game, setGame] = useState(() => createGameState('medium'))
 
   const enemyHits = game.enemyBoard.flat().filter((cell) => cell === 'hit').length
   const playerHits = game.playerBoard.flat().filter((cell) => cell === 'hit').length
@@ -105,17 +180,9 @@ function App() {
     if (!winner) {
       window.setTimeout(() => {
         setGame((current) => {
-          const availableShots = []
+          const [enemyRow, enemyCol] = chooseEnemyShot(current.playerBoard, current.difficulty) || []
 
-          for (let y = 0; y < GRID_SIZE; y += 1) {
-            for (let x = 0; x < GRID_SIZE; x += 1) {
-              if (current.playerBoard[y][x] !== 'hit' && current.playerBoard[y][x] !== 'miss') {
-                availableShots.push([y, x])
-              }
-            }
-          }
-
-          if (availableShots.length === 0) {
+          if (enemyRow === undefined || enemyCol === undefined) {
             return {
               ...current,
               winner: 'draw',
@@ -123,9 +190,6 @@ function App() {
             }
           }
 
-          const [enemyRow, enemyCol] = availableShots[
-            Math.floor(Math.random() * availableShots.length)
-          ]
           const nextPlayerBoard = current.playerBoard.map((boardRow) => [...boardRow])
           const enemyHit = current.playerLayout[enemyRow][enemyCol] === 'ship'
 
@@ -144,12 +208,21 @@ function App() {
                 : 'The enemy missed your ships.',
           }
         })
-      }, 450)
+      }, DIFFICULTY_OPTIONS[difficulty].delay)
     }
   }
 
+  const handleDifficultySelect = (nextDifficulty) => {
+    setDifficulty(nextDifficulty)
+    setGame(createGameState(nextDifficulty))
+  }
+
   const handleReset = () => {
-    setGame(createGameState())
+    setGame(createGameState(difficulty))
+  }
+
+  if (!isLoggedIn) {
+    return <SignUp onSignUpComplete={() => setIsLoggedIn(true)} />
   }
 
   return (
@@ -163,10 +236,36 @@ function App() {
               Sink the enemy fleet before they sink yours. Every turn fires one shot on the enemy waters.
             </p>
           </div>
-          <button type="button" className="ghost-button" onClick={handleReset}>
-            New match
-          </button>
+          <div style={{ display: 'flex', gap: '8px', flexDirection: 'column' }}>
+            <button type="button" className="ghost-button" onClick={handleReset}>
+              New match
+            </button>
+            <button type="button" className="ghost-button" onClick={() => setIsLoggedIn(false)}>
+              Logout
+            </button>
+          </div>
         </header>
+
+        <section className="difficulty-card">
+          <div>
+            <p className="eyebrow">Choose a level</p>
+            <h2>Difficulty</h2>
+            <p className="lede small">Switch levels anytime. Picking a new level resets the board for a fresh match.</p>
+          </div>
+          <div className="difficulty-pills" role="group" aria-label="Difficulty levels">
+            {Object.entries(DIFFICULTY_OPTIONS).map(([value, settings]) => (
+              <button
+                key={value}
+                type="button"
+                className={`difficulty-pill ${difficulty === value ? 'active' : ''}`}
+                onClick={() => handleDifficultySelect(value)}
+              >
+                <strong>{settings.label}</strong>
+                <span>{settings.description}</span>
+              </button>
+            ))}
+          </div>
+        </section>
 
         <section className="stats-row">
           <article className="stat-card">
