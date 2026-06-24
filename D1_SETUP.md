@@ -68,11 +68,11 @@ After signing up, you can select difficulty levels (Easy, Medium, Master) and pl
 
 ```
 ├── src/
-│   ├── App.jsx              # Main game and routing component
+│   ├── App.js              # Main game and routing component
 │   ├── App.css              # Game styles
-│   ├── SignUp.jsx           # Sign-up component
+│   ├── SignUp.js           # Sign-up component
 │   ├── SignUp.css           # Sign-up styles
-│   ├── main.jsx             # React entry point
+│   ├── main.js             # React entry point
 │   └── index.css            # Global styles
 ├── functions/
 │   └── api/
