@@ -1,5 +1,8 @@
 // src/worker.ts
 import { onRequestPost as handleSignup } from '../functions/api/signup';
+import { onRequestPost as handleSignin } from '../functions/api/signin';
+import { onRequestPost as handleScore } from '../functions/api/score';
+import { onRequestGet as handleLeaderboard } from '../functions/api/leaderboard';
 
 interface Env {
   DB: D1Database;
@@ -15,6 +18,21 @@ export default {
       // Create a simulated Pages Function context to reuse your existing code
       const context = { request, env, waitUntil: ctx.waitUntil.bind(ctx) } as any;
       return handleSignup(context);
+    }
+
+    if (url.pathname === '/api/signin' && request.method === 'POST') {
+      const context = { request, env, waitUntil: ctx.waitUntil.bind(ctx) } as any;
+      return handleSignin(context);
+    }
+
+    if (url.pathname === '/api/score' && request.method === 'POST') {
+      const context = { request, env, waitUntil: ctx.waitUntil.bind(ctx) } as any;
+      return handleScore(context);
+    }
+
+    if (url.pathname === '/api/leaderboard' && request.method === 'GET') {
+      const context = { request, env, waitUntil: ctx.waitUntil.bind(ctx) } as any;
+      return handleLeaderboard(context);
     }
 
     // 2. Fallback: Serve Vite static assets from the ./dist folder

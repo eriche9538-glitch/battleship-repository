@@ -76,7 +76,7 @@ function SignUp({ onSignUpComplete }) {
       // Redirect after 1.5 seconds
       const redirectTimer = setTimeout(() => {
         if (onSignUpComplete) {
-          onSignUpComplete()
+          onSignUpComplete(data.user || { username: formData.username, email: formData.email })
         }
       }, 1500)
 

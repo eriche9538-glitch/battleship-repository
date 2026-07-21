@@ -1,4 +1,4 @@
-// functions/api/signup.ts
+// functions/api/signin.ts
 
 interface Env {
   DB: D1Database;
@@ -9,9 +9,9 @@ export async function onRequestPost(context: { request: Request; env: Env }): Pr
 
   try {
     const body: any = await request.json().catch(() => null);
-    const { username, email, password } = body || {};
+    const { identifier, password } = body || {};
 
-    if (!username || !email || !password) {
+    if (!identifier || !password) {
       return jsonResponse(400, { error: 'Missing required fields' });
     }
 
@@ -20,20 +20,17 @@ export async function onRequestPost(context: { request: Request; env: Env }): Pr
       return jsonResponse(500, { error: "Database binding 'DB' is missing." });
     }
 
-    const cleanUsername = username.trim();
-    const cleanEmail = email.trim().toLowerCase();
+    const cleanIdentifier = identifier.trim();
 
-    // Check database
-    const existingUser = await db
-      .prepare('SELECT id FROM Users WHERE email = ?1 OR username = ?2 LIMIT 1')
-      .bind(cleanEmail, cleanUsername)
-      .first<{ id: number } | null>();
+    const user = await db
+      .prepare('SELECT id, username, email, password, score FROM Users WHERE lower(email) = lower(?1) OR lower(username) = lower(?2) LIMIT 1')
+      .bind(cleanIdentifier, cleanIdentifier)
+      .first<{ id: number; username: string; email: string; password: string; score: number } | null>();
 
-    if (existingUser) {
-      return jsonResponse(409, { error: 'Email or username already exists' });
+    if (!user) {
+      return jsonResponse(401, { error: 'Invalid email/username or password' });
     }
 
-    // Hash password using native crypto SHA-256
     const encoder = new TextEncoder();
     const data = encoder.encode(password);
     const hashBuffer = await crypto.subtle.digest('SHA-256', data);
@@ -41,22 +38,14 @@ export async function onRequestPost(context: { request: Request; env: Env }): Pr
       .map((b) => b.toString(16).padStart(2, '0'))
       .join('');
 
-    await db
-      .prepare('INSERT INTO Users (username, password, email) VALUES (?, ?, ?)')
-      .bind(cleanUsername, hashedPassword, cleanEmail)
-      .run();
+    if (user.password !== hashedPassword) {
+      return jsonResponse(401, { error: 'Invalid email/username or password' });
+    }
 
-    const insertedUser = await db
-      .prepare('SELECT last_insert_rowid() AS id')
-      .first<{ id: number } | null>();
-
-    const id = insertedUser?.id ?? 0;
-
-    return jsonResponse(201, {
+    return jsonResponse(200, {
       success: true,
-      user: { id, username: cleanUsername, email: cleanEmail },
+      user: { id: user.id, username: user.username, email: user.email, score: user.score ?? 0 },
     });
-
   } catch (error: any) {
     return jsonResponse(500, { error: 'Internal server error', details: error.message });
   }
