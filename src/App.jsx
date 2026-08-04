@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { animate } from 'motion'
 import './App.css'
 import SignUp from './SignUp'
 import SignIn from './SignIn'
@@ -302,9 +303,14 @@ function App() {
   const [score, setScore] = useState(0)
   const [leaderboard, setLeaderboard] = useState([])
   const [yourLeaderboardEntry, setYourLeaderboardEntry] = useState(null)
+  const [recentHit, setRecentHit] = useState(null)
+  const [hoveredEnemyTarget, setHoveredEnemyTarget] = useState(null)
   const [showLeaderboard, setShowLeaderboard] = useState(false)
   const [themeName, setThemeName] = useState('blue')
   const [showThemeMenu, setShowThemeMenu] = useState(false)
+  const appRootRef = useRef(null)
+  const enemyBoardRef = useRef(null)
+  const playerBoardRef = useRef(null)
 
   const enemyHits = game.enemyBoard.flat().filter((cell) => cell === 'hit').length
   const playerHits = game.playerBoard.flat().filter((cell) => cell === 'hit').length
@@ -365,6 +371,70 @@ function App() {
     return undefined
   }, [themeName])
 
+  useEffect(() => {
+    if (!appRootRef.current) {
+      return undefined
+    }
+
+    animate(appRootRef.current, {
+      opacity: [0, 0.25, 1],
+      transform: ['translateY(24px)', 'translateY(8px)', 'translateY(0px)'],
+    }, {
+      duration: 0.45,
+      easing: 'easeOut',
+    })
+
+    return undefined
+  }, [currentView, showSignIn])
+
+  useEffect(() => {
+    if (!recentHit) {
+      return undefined
+    }
+
+    const boardRef = recentHit.board === 'player' ? playerBoardRef.current : enemyBoardRef.current
+    if (!boardRef) {
+      return undefined
+    }
+
+    const hitCell = boardRef.querySelector(`[data-hit-coord="${recentHit.row}-${recentHit.col}"]`)
+    if (!hitCell) {
+      return undefined
+    }
+
+    animate(hitCell, {
+      scale: [1, 0.92, 1.18, 1],
+      boxShadow: [
+        '0 2px 12px rgba(0,0,0,0.16)',
+        '0 0 0 20px rgba(248, 113, 113, 0.45)',
+        '0 0 0 0 rgba(248, 113, 113, 0)',
+      ],
+    }, {
+      duration: 0.72,
+      easing: 'easeOut',
+    })
+
+    const overlay = hitCell.querySelector('.hit-bomb')
+    if (overlay) {
+      animate(overlay, {
+        opacity: [0, 1, 1, 0],
+        scale: [0.6, 1, 1.2, 1.4],
+      }, {
+        duration: 0.75,
+        easing: 'easeOut',
+      })
+    }
+
+    animate(boardRef, {
+      transform: ['scale(1)', 'scale(1.01)', 'scale(1)'],
+    }, {
+      duration: 0.6,
+      easing: 'easeOut',
+    })
+
+    return undefined
+  }, [recentHit])
+
   const persistWin = async () => {
     if (!currentUser?.id || typeof window === 'undefined') {
       return
@@ -391,7 +461,7 @@ function App() {
     }
   }
 
-  const handlePlayerAttack = (row, col) => {
+  const handlePlayerAttack = (row, col, event) => {
     if (game.winner || game.enemyBoard[row][col] === 'hit' || game.enemyBoard[row][col] === 'miss') {
       return
     }
@@ -400,6 +470,27 @@ function App() {
     const hit = game.enemyLayout[row][col] === 'ship'
 
     nextEnemyBoard[row][col] = hit ? 'hit' : 'miss'
+
+    if (hit) {
+      const hitId = `${row}-${col}-${Date.now()}`
+      setRecentHit({ row, col, board: 'enemy', id: hitId })
+      if (event?.currentTarget) {
+        animate(event.currentTarget, {
+          scale: [1, 0.94, 1.16, 1],
+          boxShadow: [
+            '0 2px 12px rgba(0,0,0,0.15)',
+            '0 0 0 22px rgba(248, 113, 113, 0.45)',
+            '0 0 0 0 rgba(248, 113, 113, 0)',
+          ],
+        }, {
+          duration: 0.7,
+          easing: 'easeOut',
+        })
+      }
+      window.setTimeout(() => {
+        setRecentHit((current) => (current?.id === hitId ? null : current))
+      }, 900)
+    }
 
     const winner = isFleetSunk(game.enemyLayout, nextEnemyBoard) ? 'player' : null
 
@@ -436,6 +527,13 @@ function App() {
           const enemyHit = current.playerLayout[enemyRow][enemyCol] === 'ship'
 
           nextPlayerBoard[enemyRow][enemyCol] = enemyHit ? 'hit' : 'miss'
+          if (enemyHit) {
+            const hitId = `${enemyRow}-${enemyCol}-${Date.now()}`
+            setRecentHit({ row: enemyRow, col: enemyCol, board: 'player', id: hitId })
+            window.setTimeout(() => {
+              setRecentHit((current) => (current?.id === hitId ? null : current))
+            }, 900)
+          }
 
           const enemyWinner = isFleetSunk(current.playerLayout, nextPlayerBoard) ? 'enemy' : null
 
@@ -455,20 +553,8 @@ function App() {
   }
 
   const handleStartClick = () => {
-    const hasStoredAccount = Boolean(currentUser) || (() => {
-      if (typeof window === 'undefined') {
-        return false
-      }
-
-      try {
-        return Boolean(window.localStorage.getItem(ACCOUNT_STORAGE_KEY))
-      } catch {
-        return false
-      }
-    })()
-
     setCurrentView('signin')
-    setShowSignIn(hasStoredAccount)
+    setShowSignIn(true)
     setIsLoggedIn(false)
   }
 
@@ -747,7 +833,7 @@ function App() {
 
   if (currentView === 'home') {
     return (
-      <main className="app-shell" style={themeStyle}>
+      <main ref={appRootRef} className="app-shell" style={themeStyle}>
         <section className="panel home-panel">
           <div className="home-overlay" />
           <div className="home-hero">
@@ -774,7 +860,7 @@ function App() {
 
   if (currentView === 'credits') {
     return (
-      <main className="app-shell" style={themeStyle}>
+      <main ref={appRootRef} className="app-shell" style={themeStyle}>
         <section className="panel credits-panel">
           <button type="button" className="ghost-button credits-back" onClick={() => setCurrentView('home')}>
             Back
@@ -787,7 +873,7 @@ function App() {
 
   if (currentView === 'signin') {
     return (
-      <main className="app-shell" style={themeStyle}>
+      <main ref={appRootRef} className="app-shell" style={themeStyle}>
         {showSignIn ? (
           <SignIn
         onSignInComplete={(user) => {
@@ -815,6 +901,7 @@ function App() {
               setCurrentView('game')
               setShowProfileMenu(false)
             }}
+            onSwitchToSignIn={() => setShowSignIn(true)}
           />
         )}
       </main>
@@ -822,7 +909,7 @@ function App() {
   }
 
   return (
-    <main className="app-shell" style={themeStyle}>
+    <main ref={appRootRef} className="app-shell" style={themeStyle}>
       {renderPreferencesBar()}
       <section className="panel">
         <header className="intro">
@@ -1094,15 +1181,22 @@ function App() {
                   <h2>Your fleet</h2>
                   <p>Watch your own waters and your damage report.</p>
                 </div>
-                <div className="board" aria-label="Your fleet grid">
+                <div ref={playerBoardRef} className="board player-board" aria-label="Your fleet grid">
                   {game.playerBoard.map((row, rowIndex) =>
-                    row.map((cell, colIndex) => (
-                      <div
-                        key={`player-${rowIndex}-${colIndex}`}
-                        className={`cell ${cell === 'ship' ? 'ship' : cell === 'hit' ? 'hit' : cell === 'miss' ? 'miss' : 'water'}`}
-                        aria-label={`Your ${rowIndex + 1},${colIndex + 1}`}
-                      />
-                    ))
+                    row.map((cell, colIndex) => {
+                      const isRecentHit = recentHit?.board === 'player' && recentHit.row === rowIndex && recentHit.col === colIndex
+
+                      return (
+                        <div
+                          key={`player-${rowIndex}-${colIndex}`}
+                          data-hit-coord={`${rowIndex}-${colIndex}`}
+                          className={`cell ${cell === 'ship' ? 'ship' : cell === 'hit' ? 'hit' : cell === 'miss' ? 'miss' : 'water'}`}
+                          aria-label={`Your ${rowIndex + 1},${colIndex + 1}`}
+                        >
+                          {isRecentHit && cell === 'hit' ? <span className="hit-bomb">💥</span> : null}
+                        </div>
+                      )
+                    })
                   )}
                 </div>
               </article>
@@ -1112,20 +1206,28 @@ function App() {
                   <h2>Enemy waters</h2>
                   <p>Click a square to fire. Hidden ships are placed at random.</p>
                 </div>
-                <div className="board" aria-label="Enemy waters grid">
+                <div ref={enemyBoardRef} className="board enemy-board" aria-label="Enemy waters grid">
                   {game.enemyBoard.map((row, rowIndex) =>
                     row.map((cell, colIndex) => {
                       const isShot = cell === 'hit' || cell === 'miss'
+                      const isRecentHit = recentHit?.board === 'enemy' && recentHit.row === rowIndex && recentHit.col === colIndex
 
                       return (
                         <button
                           key={`enemy-${rowIndex}-${colIndex}`}
                           type="button"
-                          className={`cell enemy-cell ${isShot ? (cell === 'hit' ? 'hit' : 'miss') : 'water'}`}
-                          onClick={() => handlePlayerAttack(rowIndex, colIndex)}
+                          data-hit-coord={`${rowIndex}-${colIndex}`}
+                          className={`cell enemy-cell ${isShot ? (cell === 'hit' ? 'hit' : 'miss') : hoveredEnemyTarget?.[0] === rowIndex && hoveredEnemyTarget?.[1] === colIndex ? 'targeted' : 'water'}`}
+                          onClick={(event) => handlePlayerAttack(rowIndex, colIndex, event)}
+                          onMouseEnter={() => setHoveredEnemyTarget([rowIndex, colIndex])}
+                          onMouseLeave={() => setHoveredEnemyTarget(null)}
+                          onFocus={() => setHoveredEnemyTarget([rowIndex, colIndex])}
+                          onBlur={() => setHoveredEnemyTarget(null)}
                           disabled={Boolean(game.winner) || isShot}
                           aria-label={`Fire at row ${rowIndex + 1}, column ${colIndex + 1}`}
-                        />
+                        >
+                          {isRecentHit && cell === 'hit' ? <span className="hit-bomb">💥</span> : null}
+                        </button>
                       )
                     })
                   )}

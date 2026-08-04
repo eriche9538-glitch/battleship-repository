@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import './SignUp.css'
 
-function SignUp({ onSignUpComplete }) {
+function SignUp({ onSignUpComplete, onSwitchToSignIn }) {
   const [formData, setFormData] = useState({
     username: '',
     email: '',
@@ -162,6 +162,17 @@ function SignUp({ onSignUpComplete }) {
             <button type="submit" className="primary-button" disabled={isLoading}>
               {isLoading ? 'Creating Account...' : 'Create Account'}
             </button>
+
+            <p className="switch-auth-text">
+              Already have an account?{' '}
+              <button
+                type="button"
+                className="ghost-button switch-auth-button"
+                onClick={onSwitchToSignIn}
+              >
+                Sign In
+              </button>
+            </p>
           </form>
         )}
       </div>

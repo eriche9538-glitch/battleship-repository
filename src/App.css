@@ -461,20 +461,37 @@
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 0 0 1px var(--accent, rgba(191, 219, 254, 0.6)), 0 8px 18px rgba(56, 189, 248, 0.22);
 }
 
-.cell.ship {
-  background: linear-gradient(145deg, var(--accent, #1d4ed8), var(--surface-background, #0f766e));
+.player-board .cell.ship {
+  background: linear-gradient(145deg, #0b1220, #0ea5e9);
+  border-color: #60a5fa;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 0 0 1px rgba(96, 165, 250, 0.24);
 }
 
-.cell.hit {
-  background: linear-gradient(145deg, var(--accent, #fb7185), var(--surface-background, #ef4444));
+.player-board .cell.hit {
+  background: linear-gradient(145deg, #991b1b, #ef4444);
+  border-color: #f87171;
+  box-shadow: inset 0 0 0 2px rgba(248, 113, 113, 0.5);
 }
 
-.cell.miss {
-  background: linear-gradient(145deg, var(--accent, #38bdf8), var(--surface-background, #0ea5e9));
+.enemy-board .cell.hit {
+  background: linear-gradient(145deg, #b91c1c, #fca5a5);
+  border-color: #f87171;
+}
+
+.enemy-board .cell.miss {
+  background: linear-gradient(145deg, #0ea5e9, #38bdf8);
+}
+
+.enemy-board .cell.targeted {
+  background: linear-gradient(145deg, #dc2626, #f87171);
+  border-color: #f87171;
+  box-shadow: 0 0 0 2px rgba(248, 113, 113, 0.55);
+  transform: translateY(-1px);
 }
 
 .enemy-cell {
   cursor: pointer;
+  position: relative;
 }
 
 .enemy-cell:hover:not(:disabled) {
@@ -485,6 +502,28 @@
 .enemy-cell:disabled {
   cursor: not-allowed;
   opacity: 0.92;
+}
+
+.hit-bomb {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 2.2rem;
+  height: 2.2rem;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  color: #fff;
+  font-size: 1rem;
+  background: radial-gradient(circle, rgba(248, 113, 113, 0.85) 0%, rgba(245, 158, 11, 0.15) 60%, transparent 100%);
+  box-shadow: 0 0 0 0 rgba(248, 113, 113, 0.6);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.enemy-board {
+  transition: transform 0.25s ease;
 }
 
 .home-panel {
