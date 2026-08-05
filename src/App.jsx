@@ -311,6 +311,7 @@ function App() {
   const appRootRef = useRef(null)
   const enemyBoardRef = useRef(null)
   const playerBoardRef = useRef(null)
+  const statusRef = useRef(null)
 
   const enemyHits = game.enemyBoard.flat().filter((cell) => cell === 'hit').length
   const playerHits = game.playerBoard.flat().filter((cell) => cell === 'hit').length
@@ -388,6 +389,88 @@ function App() {
   }, [currentView, showSignIn])
 
   useEffect(() => {
+    if (!statusRef.current) {
+      return undefined
+    }
+
+    animate(statusRef.current, {
+      opacity: [0.5, 1],
+      transform: ['translateY(10px)', 'translateY(0px)'],
+    }, {
+      duration: 0.34,
+      easing: 'easeOut',
+    })
+
+    return undefined
+  }, [game.status])
+
+  useEffect(() => {
+    const buttons = Array.from(document.querySelectorAll('.primary-button, .ghost-button'))
+    const onPress = (event) => {
+      animate(event.currentTarget, {
+        scale: [1, 0.96, 1],
+      }, {
+        duration: 0.18,
+        easing: 'easeOut',
+      })
+    }
+
+    buttons.forEach((button) => button.addEventListener('pointerdown', onPress))
+
+    return () => {
+      buttons.forEach((button) => button.removeEventListener('pointerdown', onPress))
+    }
+  }, [currentView])
+
+  useEffect(() => {
+    if (currentView !== 'game') {
+      return undefined
+    }
+
+    const cards = Array.from(document.querySelectorAll('.board-card'))
+    if (cards.length === 0) {
+      return undefined
+    }
+
+    animate(cards, {
+      opacity: [0, 0.5, 1],
+      transform: ['translateY(18px)', 'translateY(6px)', 'translateY(0px)'],
+    }, {
+      duration: 0.5,
+      easing: 'easeOut',
+      delay: 0.08,
+      stagger: 0.06,
+    })
+
+    return undefined
+  }, [currentView, gameMode])
+
+  useEffect(() => {
+    if (!hoveredEnemyTarget) {
+      return undefined
+    }
+
+    const targetCell = document.querySelector(`[data-hit-coord="${hoveredEnemyTarget[0]}-${hoveredEnemyTarget[1]}"]`)
+    if (!targetCell) {
+      return undefined
+    }
+
+    animate(targetCell, {
+      scale: [1, 1.04, 1],
+      boxShadow: [
+        '0 0 0 0 rgba(248, 113, 113, 0)',
+        '0 0 0 16px rgba(248, 113, 113, 0.30)',
+        '0 0 0 0 rgba(248, 113, 113, 0)',
+      ],
+    }, {
+      duration: 0.3,
+      easing: 'easeOut',
+    })
+
+    return undefined
+  }, [hoveredEnemyTarget])
+
+  useEffect(() => {
     if (!recentHit) {
       return undefined
     }
@@ -402,15 +485,17 @@ function App() {
       return undefined
     }
 
+    const pulseColor = recentHit.type === 'hit' ? 'rgba(248, 113, 113, 0.45)' : 'rgba(59, 130, 246, 0.35)'
     animate(hitCell, {
-      scale: [1, 0.92, 1.18, 1],
+      opacity: [0.9, 1, 1],
+      scale: [1, 0.96, 1.1, 1],
       boxShadow: [
         '0 2px 12px rgba(0,0,0,0.16)',
-        '0 0 0 20px rgba(248, 113, 113, 0.45)',
-        '0 0 0 0 rgba(248, 113, 113, 0)',
+        `0 0 0 24px ${pulseColor}`,
+        '0 0 0 0 rgba(0, 0, 0, 0)',
       ],
     }, {
-      duration: 0.72,
+      duration: 0.64,
       easing: 'easeOut',
     })
 
@@ -418,7 +503,7 @@ function App() {
     if (overlay) {
       animate(overlay, {
         opacity: [0, 1, 1, 0],
-        scale: [0.6, 1, 1.2, 1.4],
+        scale: [0.5, 1, 1.3, 1.6],
       }, {
         duration: 0.75,
         easing: 'easeOut',
@@ -471,26 +556,24 @@ function App() {
 
     nextEnemyBoard[row][col] = hit ? 'hit' : 'miss'
 
-    if (hit) {
-      const hitId = `${row}-${col}-${Date.now()}`
-      setRecentHit({ row, col, board: 'enemy', id: hitId })
-      if (event?.currentTarget) {
-        animate(event.currentTarget, {
-          scale: [1, 0.94, 1.16, 1],
-          boxShadow: [
-            '0 2px 12px rgba(0,0,0,0.15)',
-            '0 0 0 22px rgba(248, 113, 113, 0.45)',
-            '0 0 0 0 rgba(248, 113, 113, 0)',
-          ],
-        }, {
-          duration: 0.7,
-          easing: 'easeOut',
-        })
-      }
-      window.setTimeout(() => {
-        setRecentHit((current) => (current?.id === hitId ? null : current))
-      }, 900)
+    const hitId = `${row}-${col}-${Date.now()}`
+    setRecentHit({ row, col, board: 'enemy', type: hit ? 'hit' : 'miss', id: hitId })
+    if (event?.currentTarget) {
+      animate(event.currentTarget, {
+        scale: [1, 0.96, 1.08, 1],
+        boxShadow: [
+          '0 2px 12px rgba(0,0,0,0.15)',
+          hit ? '0 0 0 20px rgba(248, 113, 113, 0.35)' : '0 0 0 20px rgba(59, 130, 246, 0.30)',
+          '0 0 0 0 rgba(0, 0, 0, 0)',
+        ],
+      }, {
+        duration: 0.6,
+        easing: 'easeOut',
+      })
     }
+    window.setTimeout(() => {
+      setRecentHit((current) => (current?.id === hitId ? null : current))
+    }, 900)
 
     const winner = isFleetSunk(game.enemyLayout, nextEnemyBoard) ? 'player' : null
 
@@ -527,13 +610,11 @@ function App() {
           const enemyHit = current.playerLayout[enemyRow][enemyCol] === 'ship'
 
           nextPlayerBoard[enemyRow][enemyCol] = enemyHit ? 'hit' : 'miss'
-          if (enemyHit) {
-            const hitId = `${enemyRow}-${enemyCol}-${Date.now()}`
-            setRecentHit({ row: enemyRow, col: enemyCol, board: 'player', id: hitId })
-            window.setTimeout(() => {
-              setRecentHit((current) => (current?.id === hitId ? null : current))
-            }, 900)
-          }
+          const enemyHitId = `${enemyRow}-${enemyCol}-${Date.now()}`
+          setRecentHit({ row: enemyRow, col: enemyCol, board: 'player', type: enemyHit ? 'hit' : 'miss', id: enemyHitId })
+          window.setTimeout(() => {
+            setRecentHit((current) => (current?.id === enemyHitId ? null : current))
+          }, 900)
 
           const enemyWinner = isFleetSunk(current.playerLayout, nextPlayerBoard) ? 'enemy' : null
 
@@ -1193,7 +1274,11 @@ function App() {
                           className={`cell ${cell === 'ship' ? 'ship' : cell === 'hit' ? 'hit' : cell === 'miss' ? 'miss' : 'water'}`}
                           aria-label={`Your ${rowIndex + 1},${colIndex + 1}`}
                         >
-                          {isRecentHit && cell === 'hit' ? <span className="hit-bomb">💥</span> : null}
+                          {isRecentHit ? (
+                            <span className={`hit-bomb ${cell === 'miss' ? 'miss-bomb' : ''}`}>
+                              {cell === 'miss' ? '💨' : '💥'}
+                            </span>
+                          ) : null}
                         </div>
                       )
                     })
@@ -1226,7 +1311,11 @@ function App() {
                           disabled={Boolean(game.winner) || isShot}
                           aria-label={`Fire at row ${rowIndex + 1}, column ${colIndex + 1}`}
                         >
-                          {isRecentHit && cell === 'hit' ? <span className="hit-bomb">💥</span> : null}
+                          {isRecentHit ? (
+                            <span className={`hit-bomb ${cell === 'miss' ? 'miss-bomb' : ''}`}>
+                              {cell === 'miss' ? '💨' : '💥'}
+                            </span>
+                          ) : null}
                         </button>
                       )
                     })
@@ -1238,7 +1327,7 @@ function App() {
         </section>
 
         <footer className="footer-bar">
-          <p>{gameMode === 'multiplayer' ? (multiplayerType === 'private'
+          <p ref={statusRef}>{gameMode === 'multiplayer' ? (multiplayerType === 'private'
             ? (roomState?.status === 'matched'
               ? `Room ${roomCode} is matched. ${getOpponentName(roomState, currentUser?.email || roomState.players[0]?.id) || 'Another player'} is ready.`
               : `Private room ready: ${roomCode}. Share this code with another player to begin.`)
