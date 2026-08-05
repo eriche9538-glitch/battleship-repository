@@ -114,5 +114,5 @@ const server = http.createServer(async (req, res) => {
 
 const PORT = 3001
 server.listen(PORT, () => {
-  console.log(`Development API server running on http://localhost:${PORT}`)
+  console.log(`Development API server running on http://127.0.0.1:${PORT}`)
 })
