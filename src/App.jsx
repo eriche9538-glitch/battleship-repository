@@ -20,16 +20,19 @@ const ABILITY_CONFIGS = {
   cross: {
     label: 'Cross Scan',
     maxCooldown: 2,
+    maxUses: 3,
     description: 'Reveal a cross pattern of 5 squares.',
   },
   ship: {
     label: 'Ship Scan',
     maxCooldown: 3,
-    description: 'Reveal a 3-cell linear scan.',
+    maxUses: 2,
+    description: 'Reveal and sink a 3-cell enemy ship.',
   },
   line: {
     label: 'Line Sweep',
     maxCooldown: 4,
+    maxUses: 4,
     description: 'Reveal 5 squares in a random horizontal or vertical line.',
   },
 }
@@ -359,6 +362,11 @@ function App() {
     cross: 0,
     ship: 0,
     line: 0,
+  })
+  const [abilityUses, setAbilityUses] = useState({
+    cross: ABILITY_CONFIGS.cross.maxUses,
+    ship: ABILITY_CONFIGS.ship.maxUses,
+    line: ABILITY_CONFIGS.line.maxUses,
   })
   const [leaderboard, setLeaderboard] = useState([])
   const [yourLeaderboardEntry, setYourLeaderboardEntry] = useState(null)
@@ -784,7 +792,7 @@ function App() {
   }
 
   const handleAbilityUse = (type) => {
-    if (gameMode !== 'single' || placementActive || game.winner || abilityCooldowns[type] > 0) {
+    if (gameMode !== 'single' || placementActive || game.winner || abilityCooldowns[type] > 0 || abilityUses[type] <= 0) {
       return
     }
 
@@ -839,6 +847,10 @@ function App() {
       ...prev,
       [type]: ABILITY_CONFIGS[type].maxCooldown,
     }))
+    setAbilityUses((prev) => ({
+      ...prev,
+      [type]: Math.max(0, prev[type] - 1),
+    }))
 
     const status = `${ABILITY_CONFIGS[type].label} revealed ${revealedCount} square${revealedCount === 1 ? '' : 's'}. ${hitCount > 0 ? 'Direct hits!' : 'No hits this time.'}`
     finalizePlayerMove(nextEnemyBoard, status)
@@ -857,6 +869,16 @@ function App() {
     setPlacementOrientation('horizontal')
     setPlacementActive(true)
     setHoveredPlacement(null)
+    setAbilityCooldowns({
+      cross: 0,
+      ship: 0,
+      line: 0,
+    })
+    setAbilityUses({
+      cross: ABILITY_CONFIGS.cross.maxUses,
+      ship: ABILITY_CONFIGS.ship.maxUses,
+      line: ABILITY_CONFIGS.line.maxUses,
+    })
     setGame({ ...createGameState(nextDifficulty), status: 'Place your fleet before the match starts.' })
   }
 
@@ -1544,19 +1566,28 @@ function App() {
               <p>Tap an ability to reveal extra squares. Cooldowns tick down after each enemy turn.</p>
             </div>
             <div className="ability-buttons">
-              {Object.entries(ABILITY_CONFIGS).map(([type, config]) => (
-                <button
-                  key={type}
-                  type="button"
-                  className="ability-button"
-                  onClick={() => handleAbilityUse(type)}
-                  disabled={Boolean(game.winner) || abilityCooldowns[type] > 0}
-                  aria-label={`${config.label}: ${config.description}`}
-                >
-                  <span>{config.label}</span>
-                  <small>{abilityCooldowns[type] > 0 ? `Cooldown ${abilityCooldowns[type]}` : config.description}</small>
-                </button>
-              ))}
+              {Object.entries(ABILITY_CONFIGS).map(([type, config]) => {
+                const hasUsesLeft = abilityUses[type] > 0
+                const disabled = Boolean(game.winner) || abilityCooldowns[type] > 0 || !hasUsesLeft
+
+                return (
+                  <button
+                    key={type}
+                    type="button"
+                    className="ability-button"
+                    onClick={() => handleAbilityUse(type)}
+                    disabled={disabled}
+                    aria-label={`${config.label}: ${config.description}`}
+                  >
+                    <span>{config.label}</span>
+                    <small>
+                      {abilityCooldowns[type] > 0
+                        ? `Cooldown ${abilityCooldowns[type]} · ${abilityUses[type]} use${abilityUses[type] === 1 ? '' : 's'} left`
+                        : `${config.description} · ${abilityUses[type]} use${abilityUses[type] === 1 ? '' : 's'} left`}
+                    </small>
+                  </button>
+                )
+              })}
             </div>
           </section>
         )}
