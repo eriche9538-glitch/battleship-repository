@@ -16,6 +16,24 @@ const DIFFICULTY_OPTIONS = {
   master: { label: 'Master', description: 'Aggressive, hunt-and-target attacks.', delay: 550 },
 }
 
+const ABILITY_CONFIGS = {
+  cross: {
+    label: 'Cross Scan',
+    maxCooldown: 2,
+    description: 'Reveal a cross pattern of 5 squares.',
+  },
+  ship: {
+    label: 'Ship Scan',
+    maxCooldown: 3,
+    description: 'Reveal a 3-cell linear scan.',
+  },
+  line: {
+    label: 'Line Sweep',
+    maxCooldown: 4,
+    description: 'Reveal 5 squares in a random horizontal or vertical line.',
+  },
+}
+
 const THEME_STORAGE_KEY = 'battleships-theme'
 const THEME_PRESETS = {
   pink: {
@@ -269,6 +287,41 @@ function createGameState(difficulty = 'medium', playerLayout = null, enemyLayout
   }
 }
 
+function getCrossPattern(row, col) {
+  const coords = [[row, col]]
+  if (row - 1 >= 0) coords.push([row - 1, col])
+  if (row + 1 < GRID_SIZE) coords.push([row + 1, col])
+  if (col - 1 >= 0) coords.push([row, col - 1])
+  if (col + 1 < GRID_SIZE) coords.push([row, col + 1])
+  return coords
+}
+
+function getRandomLinePattern(row, col) {
+  const isHorizontal = Math.random() < 0.5
+  const coords = [[row, col]]
+  const step = isHorizontal ? [0, 1] : [1, 0]
+
+  for (let offset = 1; offset < 5; offset += 1) {
+    const nextRow = row + step[0] * offset
+    const nextCol = col + step[1] * offset
+    if (nextRow < 0 || nextRow >= GRID_SIZE || nextCol < 0 || nextCol >= GRID_SIZE) {
+      break
+    }
+    coords.push([nextRow, nextCol])
+  }
+
+  for (let offset = 1; offset < 5 && coords.length < 5; offset += 1) {
+    const nextRow = row - step[0] * offset
+    const nextCol = col - step[1] * offset
+    if (nextRow < 0 || nextRow >= GRID_SIZE || nextCol < 0 || nextCol >= GRID_SIZE) {
+      break
+    }
+    coords.unshift([nextRow, nextCol])
+  }
+
+  return coords.slice(0, 5)
+}
+
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [showSignIn, setShowSignIn] = useState(true)
@@ -301,6 +354,12 @@ function App() {
   const [placementActive, setPlacementActive] = useState(true)
   const [hoveredPlacement, setHoveredPlacement] = useState(null)
   const [score, setScore] = useState(0)
+  const [recentAbility, setRecentAbility] = useState(null)
+  const [abilityCooldowns, setAbilityCooldowns] = useState({
+    cross: 0,
+    ship: 0,
+    line: 0,
+  })
   const [leaderboard, setLeaderboard] = useState([])
   const [yourLeaderboardEntry, setYourLeaderboardEntry] = useState(null)
   const [recentHit, setRecentHit] = useState(null)
@@ -546,6 +605,71 @@ function App() {
     }
   }
 
+  const decrementCooldowns = () => {
+    setAbilityCooldowns((prev) => ({
+      cross: Math.max(0, prev.cross - 1),
+      ship: Math.max(0, prev.ship - 1),
+      line: Math.max(0, prev.line - 1),
+    }))
+  }
+
+  const finalizePlayerMove = (nextEnemyBoard, statusMessage) => {
+    const winner = isFleetSunk(game.enemyLayout, nextEnemyBoard) ? 'player' : null
+
+    setGame((current) => ({
+      ...current,
+      enemyBoard: nextEnemyBoard,
+      winner,
+      status: winner ? 'You sank the enemy fleet. Victory!' : statusMessage,
+    }))
+
+    if (winner === 'player') {
+      setWins((currentWins) => currentWins + 1)
+      void persistWin()
+      return
+    }
+
+    window.setTimeout(() => {
+      setGame((current) => {
+        const [enemyRow, enemyCol] = chooseEnemyShot(current.playerBoard, current.difficulty) || []
+
+        if (enemyRow === undefined || enemyCol === undefined) {
+          decrementCooldowns()
+          return {
+            ...current,
+            winner: 'draw',
+            status: 'No shots left. Start a new game to play again.',
+          }
+        }
+
+        const nextPlayerBoard = current.playerBoard.map((boardRow) => [...boardRow])
+        const enemyHit = current.playerLayout[enemyRow][enemyCol] === 'ship'
+
+        nextPlayerBoard[enemyRow][enemyCol] = enemyHit ? 'hit' : 'miss'
+        const enemyHitId = `${enemyRow}-${enemyCol}-${Date.now()}`
+        setRecentHit({ row: enemyRow, col: enemyCol, board: 'player', type: enemyHit ? 'hit' : 'miss', id: enemyHitId })
+        window.setTimeout(() => {
+          setRecentHit((current) => (current?.id === enemyHitId ? null : current))
+        }, 900)
+
+        const enemyWinner = isFleetSunk(current.playerLayout, nextPlayerBoard) ? 'enemy' : null
+
+        return {
+          ...current,
+          playerBoard: nextPlayerBoard,
+          winner: enemyWinner || current.winner,
+          status: enemyWinner
+            ? 'The enemy sank your fleet. Try a fresh match.'
+            : enemyHit
+              ? 'The enemy scored a hit on your fleet.'
+              : 'The enemy missed your ships.',
+        }
+      })
+
+      decrementCooldowns()
+    }, DIFFICULTY_OPTIONS[difficulty].delay)
+  }
+
   const handlePlayerAttack = (row, col, event) => {
     if (game.winner || game.enemyBoard[row][col] === 'hit' || game.enemyBoard[row][col] === 'miss') {
       return
@@ -575,62 +699,149 @@ function App() {
       setRecentHit((current) => (current?.id === hitId ? null : current))
     }, 900)
 
-    const winner = isFleetSunk(game.enemyLayout, nextEnemyBoard) ? 'player' : null
+    finalizePlayerMove(nextEnemyBoard, hit ? 'Direct hit! The enemy is taking damage.' : 'Missed the target. The enemy retaliates.')
+  }
 
-    setGame((current) => ({
-      ...current,
-      enemyBoard: nextEnemyBoard,
-      winner,
-      status: winner
-        ? 'You sank the enemy fleet. Victory!'
-        : hit
-          ? 'Direct hit! The enemy is taking damage.'
-          : 'Missed the target. The enemy retaliates.',
-    }))
+  const getThreeTileShipCoords = (enemyLayout) => {
+    const visited = Array.from({ length: GRID_SIZE }, () => Array(GRID_SIZE).fill(false))
+    const ships = []
 
-    if (winner === 'player') {
-      setWins((currentWins) => currentWins + 1)
-      void persistWin()
-    }
+    for (let row = 0; row < GRID_SIZE; row += 1) {
+      for (let col = 0; col < GRID_SIZE; col += 1) {
+        if (enemyLayout[row][col] !== 'ship' || visited[row][col]) {
+          continue
+        }
 
-    if (!winner) {
-      window.setTimeout(() => {
-        setGame((current) => {
-          const [enemyRow, enemyCol] = chooseEnemyShot(current.playerBoard, current.difficulty) || []
+        const component = []
+        const stack = [[row, col]]
+        visited[row][col] = true
 
-          if (enemyRow === undefined || enemyCol === undefined) {
-            return {
-              ...current,
-              winner: 'draw',
-              status: 'No shots left. Start a new game to play again.',
+        while (stack.length > 0) {
+          const [currentRow, currentCol] = stack.pop()
+          component.push([currentRow, currentCol])
+
+          for (const [dr, dc] of [[0, 1], [1, 0], [0, -1], [-1, 0]]) {
+            const nextRow = currentRow + dr
+            const nextCol = currentCol + dc
+            if (
+              nextRow >= 0 && nextRow < GRID_SIZE &&
+              nextCol >= 0 && nextCol < GRID_SIZE &&
+              !visited[nextRow][nextCol] &&
+              enemyLayout[nextRow][nextCol] === 'ship'
+            ) {
+              visited[nextRow][nextCol] = true
+              stack.push([nextRow, nextCol])
             }
           }
+        }
 
-          const nextPlayerBoard = current.playerBoard.map((boardRow) => [...boardRow])
-          const enemyHit = current.playerLayout[enemyRow][enemyCol] === 'ship'
-
-          nextPlayerBoard[enemyRow][enemyCol] = enemyHit ? 'hit' : 'miss'
-          const enemyHitId = `${enemyRow}-${enemyCol}-${Date.now()}`
-          setRecentHit({ row: enemyRow, col: enemyCol, board: 'player', type: enemyHit ? 'hit' : 'miss', id: enemyHitId })
-          window.setTimeout(() => {
-            setRecentHit((current) => (current?.id === enemyHitId ? null : current))
-          }, 900)
-
-          const enemyWinner = isFleetSunk(current.playerLayout, nextPlayerBoard) ? 'enemy' : null
-
-          return {
-            ...current,
-            playerBoard: nextPlayerBoard,
-            winner: enemyWinner || current.winner,
-            status: enemyWinner
-              ? 'The enemy sank your fleet. Try a fresh match.'
-              : enemyHit
-                ? 'The enemy scored a hit on your fleet.'
-                : 'The enemy missed your ships.',
-          }
-        })
-      }, DIFFICULTY_OPTIONS[difficulty].delay)
+        if (component.length === 3) {
+          ships.push(component)
+        }
+      }
     }
+
+    if (ships.length === 0) {
+      return null
+    }
+
+    return ships[Math.floor(Math.random() * ships.length)]
+  }
+
+  const getShipPattern = (row, col) => {
+    const directions = [
+      { dr: 0, dc: 1 },
+      { dr: 1, dc: 0 },
+      { dr: 0, dc: -1 },
+      { dr: -1, dc: 0 },
+    ]
+
+    let best = [[row, col]]
+
+    for (const { dr, dc } of directions) {
+      const coords = []
+      for (let offset = -1; offset <= 1; offset += 1) {
+        const nextRow = row + dr * offset
+        const nextCol = col + dc * offset
+
+        if (nextRow < 0 || nextRow >= GRID_SIZE || nextCol < 0 || nextCol >= GRID_SIZE) {
+          break
+        }
+
+        coords.push([nextRow, nextCol])
+      }
+
+      if (coords.length === 3) {
+        return coords
+      }
+
+      if (coords.length > best.length) {
+        best = coords
+      }
+    }
+
+    return best
+  }
+
+  const handleAbilityUse = (type) => {
+    if (gameMode !== 'single' || placementActive || game.winner || abilityCooldowns[type] > 0) {
+      return
+    }
+
+    const availableTargets = []
+    for (let row = 0; row < GRID_SIZE; row += 1) {
+      for (let col = 0; col < GRID_SIZE; col += 1) {
+        if (game.enemyBoard[row][col] !== 'hit' && game.enemyBoard[row][col] !== 'miss') {
+          availableTargets.push([row, col])
+        }
+      }
+    }
+
+    if (availableTargets.length === 0) {
+      return
+    }
+
+    const [row, col] = availableTargets[Math.floor(Math.random() * availableTargets.length)]
+    let coords = [[row, col]]
+
+    if (type === 'cross') {
+      coords = getCrossPattern(row, col)
+    } else if (type === 'ship') {
+      const shipCoords = getThreeTileShipCoords(game.enemyLayout)
+      coords = shipCoords || getShipPattern(row, col)
+    } else if (type === 'line') {
+      coords = getRandomLinePattern(row, col)
+    }
+
+    const nextEnemyBoard = game.enemyBoard.map((boardRow) => [...boardRow])
+    let revealedCount = 0
+    let hitCount = 0
+
+    coords.forEach(([nextRow, nextCol]) => {
+      if (nextEnemyBoard[nextRow][nextCol] === 'hit' || nextEnemyBoard[nextRow][nextCol] === 'miss') {
+        return
+      }
+
+      const hit = game.enemyLayout[nextRow][nextCol] === 'ship'
+      nextEnemyBoard[nextRow][nextCol] = hit ? 'hit' : 'miss'
+      revealedCount += 1
+      if (hit) {
+        hitCount += 1
+      }
+    })
+
+    if (revealedCount === 0) {
+      return
+    }
+
+    setRecentAbility({ type, coords, id: `${type}-${Date.now()}` })
+    setAbilityCooldowns((prev) => ({
+      ...prev,
+      [type]: ABILITY_CONFIGS[type].maxCooldown,
+    }))
+
+    const status = `${ABILITY_CONFIGS[type].label} revealed ${revealedCount} square${revealedCount === 1 ? '' : 's'}. ${hitCount > 0 ? 'Direct hits!' : 'No hits this time.'}`
+    finalizePlayerMove(nextEnemyBoard, status)
   }
 
   const handleStartClick = () => {
@@ -1325,6 +1536,30 @@ function App() {
             </>
           )}
         </section>
+
+        {!placementActive && gameMode === 'single' && (
+          <section className="abilities-panel">
+            <div className="abilities-heading">
+              <h2>Abilities</h2>
+              <p>Tap an ability to reveal extra squares. Cooldowns tick down after each enemy turn.</p>
+            </div>
+            <div className="ability-buttons">
+              {Object.entries(ABILITY_CONFIGS).map(([type, config]) => (
+                <button
+                  key={type}
+                  type="button"
+                  className="ability-button"
+                  onClick={() => handleAbilityUse(type)}
+                  disabled={Boolean(game.winner) || abilityCooldowns[type] > 0}
+                  aria-label={`${config.label}: ${config.description}`}
+                >
+                  <span>{config.label}</span>
+                  <small>{abilityCooldowns[type] > 0 ? `Cooldown ${abilityCooldowns[type]}` : config.description}</small>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
 
         <footer className="footer-bar">
           <p ref={statusRef}>{gameMode === 'multiplayer' ? (multiplayerType === 'private'

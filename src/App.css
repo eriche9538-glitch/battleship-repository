@@ -444,6 +444,74 @@
   box-shadow: 0 28px 64px rgba(15, 23, 42, 0.42);
 }
 
+.abilities-panel {
+  margin-top: 22px;
+  border-radius: 22px;
+  border: 1px solid var(--panel-border, rgba(148, 163, 184, 0.22));
+  background: linear-gradient(145deg, var(--surface-background, rgba(15, 23, 42, 0.72)), var(--panel-background, rgba(15, 23, 42, 0.72)));
+  padding: 18px;
+}
+
+.abilities-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.abilities-heading h2 {
+  margin: 0;
+  color: var(--text-primary, #eff6ff);
+}
+
+.abilities-heading p {
+  margin: 0;
+  color: var(--text-secondary, #cbd5e1);
+  font-size: 0.95rem;
+  max-width: 640px;
+}
+
+.ability-buttons {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.ability-button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 16px;
+  border: 1px solid var(--panel-border, rgba(148, 163, 184, 0.28));
+  padding: 14px 16px;
+  background: linear-gradient(145deg, var(--surface-background, rgba(15, 23, 42, 0.9)), var(--panel-background, rgba(15, 23, 42, 0.85)));
+  color: var(--text-primary, #eff6ff);
+  cursor: pointer;
+  transition: transform 0.18s ease, background 0.2s ease, border-color 0.2s ease;
+}
+
+.ability-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: var(--accent, #38bdf8);
+}
+
+.ability-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.ability-button span {
+  font-weight: 700;
+}
+
+.ability-button small {
+  color: var(--text-secondary, #cbd5e1);
+  font-size: 0.85rem;
+}
+
 .cell {
   position: relative;
   overflow: hidden;
