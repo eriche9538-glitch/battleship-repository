@@ -3,28 +3,21 @@ interface Env {
 }
 
 export async function onRequestPost(context: { request: Request; env: Env }): Promise<Response> {
-  const { request, env } = context;
-
   try {
-    const body: any = await request.json().catch(() => null);
-    const { userId, currencyDelta = 0 } = body || {};
+    const body: any = await context.request.json().catch(() => null);
+    const { userId, currencyDelta } = body || {};
+    const parsedCurrencyDelta = Number(currencyDelta);
 
-    if (!userId) {
-      return jsonResponse(400, { error: 'Missing userId' });
+    if (!userId || !Number.isFinite(parsedCurrencyDelta)) {
+      return jsonResponse(400, { error: 'Missing userId or invalid currencyDelta' });
     }
 
-    const db = env.DB;
-    if (!db) {
+    if (!context.env.DB) {
       return jsonResponse(500, { error: "Database binding 'DB' is missing." });
     }
 
-    const parsedCurrencyDelta = Number(currencyDelta);
-    if (!Number.isFinite(parsedCurrencyDelta)) {
-      return jsonResponse(400, { error: 'Invalid currencyDelta' });
-    }
-
-    await db
-      .prepare('UPDATE Users SET score = score + 1, battle_currency = MAX(0, COALESCE(battle_currency, 0) + ?2) WHERE id = ?1')
+    await context.env.DB
+      .prepare('UPDATE Users SET battle_currency = MAX(0, COALESCE(battle_currency, 0) + ?2) WHERE id = ?1')
       .bind(userId, parsedCurrencyDelta)
       .run();
 

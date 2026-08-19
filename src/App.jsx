@@ -10,32 +10,69 @@ const GRID_SIZE = 10
 const SHIP_SIZES = [5, 4, 3, 3, 2]
 const ACCOUNT_STORAGE_KEY = 'battleships-account'
 const ROOM_STORAGE_KEY = 'battleships-room-store'
+const BATTLE_CURRENCY_STORAGE_KEY = 'battleships-battle-currency'
+const ABILITY_STOCK_STORAGE_KEY = 'battleships-ability-stock'
 const DIFFICULTY_OPTIONS = {
-  easy: { label: 'Easy', description: 'Random shots and a slower enemy.', delay: 320 },
-  medium: { label: 'Medium', description: 'Targets nearby hits more often.', delay: 430 },
-  master: { label: 'Master', description: 'Aggressive, hunt-and-target attacks.', delay: 550 },
+  easy: { label: 'Easy', description: 'Random shots and a slower enemy.', delay: 320, reward: 25 },
+  medium: { label: 'Medium', description: 'Targets nearby hits more often.', delay: 430, reward: 100 },
+  master: { label: 'Master', description: 'Aggressive, hunt-and-target attacks.', delay: 550, reward: 1000 },
 }
 
 const ABILITY_CONFIGS = {
   cross: {
     label: 'Cross Scan',
+    category: 'Recon',
     maxCooldown: 2,
     maxUses: 3,
+    price: 50,
     description: 'Reveal a cross pattern of 5 squares.',
   },
   ship: {
     label: 'Ship Scan',
+    category: 'Recon',
     maxCooldown: 3,
     maxUses: 2,
+    price: 100,
     description: 'Reveal and sink a 3-cell enemy ship.',
   },
   line: {
     label: 'Line Sweep',
+    category: 'Offensive',
     maxCooldown: 4,
     maxUses: 4,
+    price: 150,
     description: 'Reveal 5 squares in a random horizontal or vertical line.',
   },
+  airstrike: { label: 'Airstrike', category: 'Offensive', maxCooldown: 2, maxUses: 0, price: 750, description: 'Bomb 3 random enemy squares.' },
+  missileBarrage: { label: 'Missile Barrage', category: 'Offensive', maxCooldown: 3, maxUses: 0, price: 1000, description: 'Launch 7 missiles at random enemy squares.' },
+  piercingShot: { label: 'Piercing Shot', category: 'Offensive', maxCooldown: 3, maxUses: 0, price: 850, description: 'Fire through 5 squares in a straight line.' },
+  crossfire: { label: 'Crossfire', category: 'Offensive', maxCooldown: 3, maxUses: 0, price: 1200, description: 'Strike two cross patterns at once.' },
+  scatterShot: { label: 'Scatter Shot', category: 'Offensive', maxCooldown: 2, maxUses: 0, price: 900, description: 'Scatter 8 shots across enemy waters.' },
+  torpedo: { label: 'Torpedo', category: 'Offensive', maxCooldown: 4, maxUses: 0, price: 1500, description: 'Torpedo a complete random row or column.' },
+  radarScan: { label: 'Radar Scan', category: 'Recon', maxCooldown: 2, maxUses: 0, price: 400, description: 'Reveal 3 hidden ship squares.' },
+  sonarPulse: { label: 'Sonar Pulse', category: 'Recon', maxCooldown: 2, maxUses: 0, price: 650, description: 'Scan a 3x3 ring around a random target.' },
+  spyPlane: { label: 'Spy Plane', category: 'Recon', maxCooldown: 2, maxUses: 0, price: 900, description: 'Reveal a hidden ship square and its nearby waters.' },
+  heatMap: { label: 'Heat Map', category: 'Recon', maxCooldown: 3, maxUses: 0, price: 750, description: 'Scan a 3x3 area of enemy waters.' },
+  shipTracker: { label: 'Ship Tracker', category: 'Recon', maxCooldown: 4, maxUses: 0, price: 1000, description: 'Track and sink a remaining 3-tile ship.' },
+  smokeScreen: { label: 'Smoke Screen', category: 'Defense', maxCooldown: 3, maxUses: 0, price: 600, description: 'Hide your fleet and skip the enemy turn.' },
+  decoyShip: { label: 'Decoy Ship', category: 'Defense', maxCooldown: 3, maxUses: 0, price: 1100, description: 'Deploy a decoy that absorbs the next enemy shot.' },
+  armorPlating: { label: 'Armor Plating', category: 'Defense', maxCooldown: 4, maxUses: 0, price: 1300, description: 'Protect your fleet from the next enemy hit.' },
+  emergencyRepair: { label: 'Emergency Repair', category: 'Defense', maxCooldown: 4, maxUses: 0, price: 1200, description: 'Repair one damaged ship tile and skip the enemy turn.' },
+  minefield: { label: 'Minefield', category: 'Defense', maxCooldown: 4, maxUses: 0, price: 1500, description: 'Seed 5 mines across random enemy waters.' },
+  shieldGenerator: { label: 'Shield Generator', category: 'Defense', maxCooldown: 5, maxUses: 0, price: 1800, description: 'Block the next two enemy shots.' },
+  tacticalSwap: { label: 'Tactical Swap', category: '☢', maxCooldown: 4, maxUses: 0, price: 40000, description: 'Reveal two random areas and evade the enemy turn.' },
+  counterattack: { label: 'Counterattack', category: '☢', maxCooldown: 4, maxUses: 0, price: 35000, description: 'Strike 3 enemy squares and retaliate if hit.' },
+  blackout: { label: 'Blackout', category: '☢', maxCooldown: 5, maxUses: 0, price: 100000, description: 'Reveal 10 random enemy squares.' },
+  ghostFleet: { label: 'Ghost Fleet', category: '☢', maxCooldown: 5, maxUses: 0, price: 150000, description: 'Reveal 12 random enemy squares and evade fire.' },
+  finalSalvo: { label: 'Final Salvo', category: '☢', maxCooldown: 6, maxUses: 0, price: 200000, description: 'Fire a devastating salvo across a random row.' },
+  nuclearStrike: { label: 'Nuclear Strike', category: '☢', maxCooldown: 8, maxUses: 0, price: 250000, description: 'Reveal every remaining enemy square.' },
 }
+
+const ABILITY_CATEGORIES = ['Offensive', 'Recon', 'Defense', '☢']
+
+const createAbilityMap = (getValue) => Object.fromEntries(
+  Object.entries(ABILITY_CONFIGS).map(([type, config]) => [type, getValue(config, type)]),
+)
 
 const THEME_STORAGE_KEY = 'battleships-theme'
 const THEME_PRESETS = {
@@ -343,6 +380,14 @@ function App() {
   })
   const [showProfileMenu, setShowProfileMenu] = useState(false)
   const [wins, setWins] = useState(0)
+  const [battleCurrency, setBattleCurrency] = useState(() => {
+    if (typeof window === 'undefined') {
+      return 0
+    }
+
+    const storedCurrency = Number(window.localStorage.getItem(BATTLE_CURRENCY_STORAGE_KEY))
+    return Number.isFinite(storedCurrency) ? storedCurrency : 0
+  })
   const [difficulty, setDifficulty] = useState('medium')
   const [gameMode, setGameMode] = useState('single')
   const [roomCodeInput, setRoomCodeInput] = useState('')
@@ -358,21 +403,31 @@ function App() {
   const [hoveredPlacement, setHoveredPlacement] = useState(null)
   const [score, setScore] = useState(0)
   const [recentAbility, setRecentAbility] = useState(null)
-  const [abilityCooldowns, setAbilityCooldowns] = useState({
-    cross: 0,
-    ship: 0,
-    line: 0,
+  const [abilityCooldowns, setAbilityCooldowns] = useState(() => createAbilityMap(() => 0))
+  const [abilityUses, setAbilityUses] = useState(() => createAbilityMap((config) => config.maxUses))
+  const [abilityStock, setAbilityStock] = useState(() => {
+    if (typeof window === 'undefined') {
+      return createAbilityMap(() => 0)
+    }
+
+    try {
+      const storedStock = JSON.parse(window.localStorage.getItem(ABILITY_STOCK_STORAGE_KEY) || '{}')
+      return createAbilityMap((config, type) => Number.isFinite(storedStock[type]) ? storedStock[type] : 0)
+    } catch {
+      return createAbilityMap(() => 0)
+    }
   })
-  const [abilityUses, setAbilityUses] = useState({
-    cross: ABILITY_CONFIGS.cross.maxUses,
-    ship: ABILITY_CONFIGS.ship.maxUses,
-    line: ABILITY_CONFIGS.line.maxUses,
-  })
+  const [usedAbilityTypes, setUsedAbilityTypes] = useState([])
+  const [defenseCharges, setDefenseCharges] = useState(0)
   const [leaderboard, setLeaderboard] = useState([])
   const [yourLeaderboardEntry, setYourLeaderboardEntry] = useState(null)
+  const [currencyLeaderboard, setCurrencyLeaderboard] = useState([])
+  const [yourCurrencyLeaderboardEntry, setYourCurrencyLeaderboardEntry] = useState(null)
   const [recentHit, setRecentHit] = useState(null)
   const [hoveredEnemyTarget, setHoveredEnemyTarget] = useState(null)
   const [showLeaderboard, setShowLeaderboard] = useState(false)
+  const [showCurrencyLeaderboard, setShowCurrencyLeaderboard] = useState(false)
+  const [showAbilityShop, setShowAbilityShop] = useState(false)
   const [themeName, setThemeName] = useState('blue')
   const [showThemeMenu, setShowThemeMenu] = useState(false)
   const appRootRef = useRef(null)
@@ -408,13 +463,18 @@ function App() {
     const loadLeaderboard = async () => {
       try {
         const response = await fetch(`/api/leaderboard?userId=${currentUser.id}`)
-        if (!response.ok) {
-          return
+        if (response.ok) {
+          const payload = await response.json()
+          setLeaderboard(payload.entries || [])
+          setYourLeaderboardEntry(payload.yourEntry || null)
         }
 
-        const payload = await response.json()
-        setLeaderboard(payload.entries || [])
-        setYourLeaderboardEntry(payload.yourEntry || null)
+        const currencyResponse = await fetch(`/api/leaderboard?userId=${currentUser.id}&mode=currency`)
+        if (currencyResponse.ok) {
+          const payload = await currencyResponse.json()
+          setCurrencyLeaderboard(payload.entries || [])
+          setYourCurrencyLeaderboardEntry(payload.yourEntry || null)
+        }
       } catch {
         // Ignore leaderboard fetch failures.
       }
@@ -438,6 +498,17 @@ function App() {
 
     return undefined
   }, [themeName])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return undefined
+    }
+
+    window.localStorage.setItem(BATTLE_CURRENCY_STORAGE_KEY, String(battleCurrency))
+    window.localStorage.setItem(ABILITY_STOCK_STORAGE_KEY, JSON.stringify(abilityStock))
+
+    return undefined
+  }, [battleCurrency, abilityStock])
 
   useEffect(() => {
     if (!appRootRef.current) {
@@ -587,7 +658,7 @@ function App() {
     return undefined
   }, [recentHit])
 
-  const persistWin = async () => {
+  const persistWin = async (currencyReward) => {
     if (!currentUser?.id || typeof window === 'undefined') {
       return
     }
@@ -596,7 +667,7 @@ function App() {
       const response = await fetch('/api/score', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: currentUser.id }),
+        body: JSON.stringify({ userId: currentUser.id, currencyDelta: currencyReward }),
       })
 
       if (response.ok) {
@@ -607,37 +678,88 @@ function App() {
           setLeaderboard(payload.entries || [])
           setYourLeaderboardEntry(payload.yourEntry || null)
         }
+
+        const currencyResponse = await fetch(`/api/leaderboard?userId=${currentUser.id}&mode=currency`)
+        if (currencyResponse.ok) {
+          const payload = await currencyResponse.json()
+          setCurrencyLeaderboard(payload.entries || [])
+          setYourCurrencyLeaderboardEntry(payload.yourEntry || null)
+        }
       }
     } catch {
       // Ignore score persistence failures.
     }
   }
 
-  const decrementCooldowns = () => {
-    setAbilityCooldowns((prev) => ({
-      cross: Math.max(0, prev.cross - 1),
-      ship: Math.max(0, prev.ship - 1),
-      line: Math.max(0, prev.line - 1),
+  const awardBattleCurrency = () => {
+    const reward = DIFFICULTY_OPTIONS[difficulty].reward
+    setBattleCurrency((currentCurrency) => currentCurrency + reward)
+    return reward
+  }
+
+  const handleBuyAbility = (type) => {
+    const price = ABILITY_CONFIGS[type].price
+    if (battleCurrency < price) {
+      return
+    }
+
+    setBattleCurrency((currentCurrency) => currentCurrency - price)
+    if (currentUser?.id) {
+      void fetch('/api/currency', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: currentUser.id, currencyDelta: -price }),
+      })
+    }
+    setAbilityStock((currentStock) => ({
+      ...currentStock,
+      [type]: currentStock[type] + 1,
+    }))
+    setAbilityUses((currentUses) => ({
+      ...currentUses,
+      [type]: currentUses[type] + 1,
     }))
   }
 
-  const finalizePlayerMove = (nextEnemyBoard, statusMessage) => {
+  const decrementCooldowns = () => {
+    setAbilityCooldowns((prev) => createAbilityMap((_config, type) => Math.max(0, prev[type] - 1)))
+  }
+
+  const finalizePlayerMove = (nextEnemyBoard, statusMessage, options = {}) => {
     const winner = isFleetSunk(game.enemyLayout, nextEnemyBoard) ? 'player' : null
 
     setGame((current) => ({
       ...current,
       enemyBoard: nextEnemyBoard,
+      playerBoard: options.nextPlayerBoard || current.playerBoard,
       winner,
       status: winner ? 'You sank the enemy fleet. Victory!' : statusMessage,
     }))
 
     if (winner === 'player') {
       setWins((currentWins) => currentWins + 1)
-      void persistWin()
+      const currencyReward = DIFFICULTY_OPTIONS[difficulty].reward
+      awardBattleCurrency()
+      void persistWin(currencyReward)
+      return
+    }
+
+    if (options.skipEnemyTurn) {
+      decrementCooldowns()
       return
     }
 
     window.setTimeout(() => {
+      if (defenseCharges > 0) {
+        setDefenseCharges((currentCharges) => Math.max(0, currentCharges - 1))
+        decrementCooldowns()
+        setGame((current) => ({
+          ...current,
+          status: 'Your defense absorbed the enemy attack.',
+        }))
+        return
+      }
+
       setGame((current) => {
         const [enemyRow, enemyCol] = chooseEnemyShot(current.playerBoard, current.difficulty) || []
 
@@ -792,7 +914,12 @@ function App() {
   }
 
   const handleAbilityUse = (type) => {
-    if (gameMode !== 'single' || placementActive || game.winner || abilityCooldowns[type] > 0 || abilityUses[type] <= 0) {
+    const config = ABILITY_CONFIGS[type]
+    if (
+      gameMode !== 'single' || placementActive || game.winner ||
+      abilityCooldowns[type] > 0 || abilityUses[type] <= 0 ||
+      (!usedAbilityTypes.includes(type) && usedAbilityTypes.length >= 3)
+    ) {
       return
     }
 
@@ -805,55 +932,87 @@ function App() {
       }
     }
 
-    if (availableTargets.length === 0) {
-      return
-    }
-
-    const [row, col] = availableTargets[Math.floor(Math.random() * availableTargets.length)]
+    const randomTargets = (count) => [...availableTargets]
+      .sort(() => Math.random() - 0.5)
+      .slice(0, count)
+    const [row, col] = availableTargets[Math.floor(Math.random() * availableTargets.length)] || [0, 0]
     let coords = [[row, col]]
+    let skipEnemyTurn = false
+    let nextPlayerBoard = game.playerBoard
 
-    if (type === 'cross') {
-      coords = getCrossPattern(row, col)
-    } else if (type === 'ship') {
-      const shipCoords = getThreeTileShipCoords(game.enemyLayout)
-      coords = shipCoords || getShipPattern(row, col)
-    } else if (type === 'line') {
-      coords = getRandomLinePattern(row, col)
+    if (type === 'cross') coords = getCrossPattern(row, col)
+    if (type === 'ship' || type === 'shipTracker') coords = getThreeTileShipCoords(game.enemyLayout) || getShipPattern(row, col)
+    if (type === 'line' || type === 'piercingShot') coords = getRandomLinePattern(row, col)
+    if (type === 'airstrike') coords = randomTargets(3)
+    if (type === 'missileBarrage') coords = randomTargets(7)
+    if (type === 'scatterShot') coords = randomTargets(8)
+    if (type === 'blackout') coords = randomTargets(10)
+    if (type === 'ghostFleet') coords = randomTargets(12)
+    if (type === 'minefield') coords = randomTargets(5)
+    if (type === 'crossfire') coords = [...getCrossPattern(row, col), ...getCrossPattern((row + 4) % GRID_SIZE, (col + 4) % GRID_SIZE)]
+    if (type === 'sonarPulse') coords = getCrossPattern(row, col).concat([[row - 1, col - 1], [row - 1, col + 1], [row + 1, col - 1], [row + 1, col + 1]])
+      .filter(([targetRow, targetCol]) => targetRow >= 0 && targetRow < GRID_SIZE && targetCol >= 0 && targetCol < GRID_SIZE)
+    if (type === 'heatMap') coords = Array.from({ length: 9 }, (_, index) => [row + Math.floor(index / 3) - 1, col + (index % 3) - 1])
+      .filter(([targetRow, targetCol]) => targetRow >= 0 && targetRow < GRID_SIZE && targetCol >= 0 && targetCol < GRID_SIZE)
+    if (type === 'torpedo' || type === 'finalSalvo') {
+      coords = Math.random() < 0.5
+        ? Array.from({ length: GRID_SIZE }, (_, targetCol) => [row, targetCol])
+        : Array.from({ length: GRID_SIZE }, (_, targetRow) => [targetRow, col])
     }
+    if (type === 'radarScan') coords = game.enemyLayout.flatMap((boardRow, targetRow) => boardRow.map((cell, targetCol) => cell === 'ship' ? [targetRow, targetCol] : null).filter(Boolean)).filter(([targetRow, targetCol]) => game.enemyBoard[targetRow][targetCol] === 'water').slice(0, 3)
+    if (type === 'spyPlane') {
+      const shipTarget = game.enemyLayout.flatMap((boardRow, targetRow) => boardRow.map((cell, targetCol) => cell === 'ship' ? [targetRow, targetCol] : null).filter(Boolean)).find(([targetRow, targetCol]) => game.enemyBoard[targetRow][targetCol] === 'water') || [row, col]
+      coords = getCrossPattern(shipTarget[0], shipTarget[1])
+    }
+    if (type === 'tacticalSwap') {
+      coords = [...getRandomLinePattern(row, col), ...getRandomLinePattern((row + 5) % GRID_SIZE, (col + 5) % GRID_SIZE)]
+      skipEnemyTurn = true
+    }
+    if (type === 'counterattack') {
+      coords = randomTargets(3)
+      setDefenseCharges((currentCharges) => currentCharges + 1)
+    }
+    if (type === 'smokeScreen' || type === 'decoyShip' || type === 'armorPlating' || type === 'shieldGenerator') {
+      skipEnemyTurn = type === 'smokeScreen'
+      setDefenseCharges((currentCharges) => currentCharges + (type === 'shieldGenerator' ? 2 : 1))
+    }
+    if (type === 'emergencyRepair') {
+      const repairedBoard = game.playerBoard.map((boardRow) => [...boardRow])
+      const damaged = repairedBoard.flatMap((boardRow, targetRow) => boardRow.map((cell, targetCol) => cell === 'hit' ? [targetRow, targetCol] : null).filter(Boolean))[0]
+      if (damaged) repairedBoard[damaged[0]][damaged[1]] = game.playerLayout[damaged[0]][damaged[1]] === 'ship' ? 'ship' : 'water'
+      nextPlayerBoard = repairedBoard
+      skipEnemyTurn = true
+      coords = []
+    }
+    if (type === 'nuclearStrike') coords = availableTargets
 
     const nextEnemyBoard = game.enemyBoard.map((boardRow) => [...boardRow])
     let revealedCount = 0
     let hitCount = 0
+    const uniqueCoords = coords.filter(([targetRow, targetCol], index, values) => targetRow >= 0 && targetRow < GRID_SIZE && targetCol >= 0 && targetCol < GRID_SIZE && values.findIndex(([sameRow, sameCol]) => sameRow === targetRow && sameCol === targetCol) === index)
 
-    coords.forEach(([nextRow, nextCol]) => {
-      if (nextEnemyBoard[nextRow][nextCol] === 'hit' || nextEnemyBoard[nextRow][nextCol] === 'miss') {
-        return
-      }
-
-      const hit = game.enemyLayout[nextRow][nextCol] === 'ship'
-      nextEnemyBoard[nextRow][nextCol] = hit ? 'hit' : 'miss'
+    uniqueCoords.forEach(([targetRow, targetCol]) => {
+      if (nextEnemyBoard[targetRow][targetCol] === 'hit' || nextEnemyBoard[targetRow][targetCol] === 'miss') return
+      const hit = game.enemyLayout[targetRow][targetCol] === 'ship'
+      nextEnemyBoard[targetRow][targetCol] = hit ? 'hit' : 'miss'
       revealedCount += 1
-      if (hit) {
-        hitCount += 1
-      }
+      if (hit) hitCount += 1
     })
 
-    if (revealedCount === 0) {
-      return
+    if (!skipEnemyTurn && revealedCount === 0 && type !== 'emergencyRepair') return
+
+    setRecentAbility({ type, coords: uniqueCoords, id: `${type}-${Date.now()}` })
+    setUsedAbilityTypes((currentTypes) => currentTypes.includes(type) ? currentTypes : [...currentTypes, type])
+    setAbilityCooldowns((prev) => ({ ...prev, [type]: config.maxCooldown }))
+    setAbilityUses((prev) => ({ ...prev, [type]: Math.max(0, prev[type] - 1) }))
+    if (abilityStock[type] > 0 && abilityUses[type] > config.maxUses) {
+      setAbilityStock((prev) => ({ ...prev, [type]: Math.max(0, prev[type] - 1) }))
     }
 
-    setRecentAbility({ type, coords, id: `${type}-${Date.now()}` })
-    setAbilityCooldowns((prev) => ({
-      ...prev,
-      [type]: ABILITY_CONFIGS[type].maxCooldown,
-    }))
-    setAbilityUses((prev) => ({
-      ...prev,
-      [type]: Math.max(0, prev[type] - 1),
-    }))
-
-    const status = `${ABILITY_CONFIGS[type].label} revealed ${revealedCount} square${revealedCount === 1 ? '' : 's'}. ${hitCount > 0 ? 'Direct hits!' : 'No hits this time.'}`
-    finalizePlayerMove(nextEnemyBoard, status)
+    const status = type === 'emergencyRepair'
+      ? 'Emergency Repair restored one damaged tile.'
+      : `${config.label} revealed ${revealedCount} square${revealedCount === 1 ? '' : 's'}. ${hitCount > 0 ? 'Direct hits!' : 'No hits this time.'}`
+    finalizePlayerMove(nextEnemyBoard, status, { skipEnemyTurn, nextPlayerBoard })
   }
 
   const handleStartClick = () => {
@@ -869,16 +1028,10 @@ function App() {
     setPlacementOrientation('horizontal')
     setPlacementActive(true)
     setHoveredPlacement(null)
-    setAbilityCooldowns({
-      cross: 0,
-      ship: 0,
-      line: 0,
-    })
-    setAbilityUses({
-      cross: ABILITY_CONFIGS.cross.maxUses,
-      ship: ABILITY_CONFIGS.ship.maxUses,
-      line: ABILITY_CONFIGS.line.maxUses,
-    })
+    setAbilityCooldowns(createAbilityMap(() => 0))
+    setAbilityUses(createAbilityMap((config, type) => config.maxUses + abilityStock[type]))
+    setUsedAbilityTypes([])
+    setDefenseCharges(0)
     setGame({ ...createGameState(nextDifficulty), status: 'Place your fleet before the match starts.' })
   }
 
@@ -1238,8 +1391,18 @@ function App() {
             <button type="button" className="ghost-button" onClick={handleReset}>
               New match
             </button>
+            <div className="currency-badge" aria-label={`${battleCurrency} battle currency`}>
+              <span>Battle currency</span>
+              <strong>{battleCurrency}</strong>
+            </div>
+            <button type="button" className="primary-button" onClick={() => setShowAbilityShop((value) => !value)}>
+              {showAbilityShop ? 'Close ability shop' : 'Ability shop'}
+            </button>
             <button type="button" className="primary-button" onClick={() => setShowLeaderboard((value) => !value)}>
               {showLeaderboard ? 'Hide leaderboard' : 'Leaderboard'}
+            </button>
+            <button type="button" className="ghost-button" onClick={() => setShowCurrencyLeaderboard((value) => !value)}>
+              {showCurrencyLeaderboard ? 'Hide currency leaderboard' : 'Currency leaderboard'}
             </button>
             <div className="profile-stack">
               <button type="button" className="ghost-button profile-toggle" onClick={() => setShowProfileMenu((value) => !value)}>
@@ -1263,6 +1426,10 @@ function App() {
                     <div className="profile-win-box">
                       <span>Score</span>
                       <strong>{score}</strong>
+                    </div>
+                    <div className="profile-win-box">
+                      <span>Battle currency</span>
+                      <strong>{battleCurrency}</strong>
                     </div>
                   </div>
                 </div>
@@ -1387,6 +1554,73 @@ function App() {
                     <span className="leaderboard-score">{yourLeaderboardEntry.score} wins</span>
                   </div>
                 )}
+              </div>
+            </section>
+          </div>
+        )}
+
+        {showCurrencyLeaderboard && (
+          <div className="leaderboard-overlay" onClick={() => setShowCurrencyLeaderboard(false)}>
+            <section className="leaderboard-card" onClick={(event) => event.stopPropagation()}>
+              <div className="board-heading">
+                <h2>Currency leaderboard</h2>
+                <p>Top 100 players ranked by battle currency. Your place is shown at the bottom when you are outside the top 100.</p>
+              </div>
+              <div className="leaderboard-list">
+                {currencyLeaderboard.map((entry) => (
+                  <div key={entry.id} className={`leaderboard-row ${currentUser?.id === entry.id ? 'leaderboard-self' : ''}`}>
+                    <span className="leaderboard-rank">#{entry.rank}</span>
+                    <span className="leaderboard-name">{entry.username}</span>
+                    <span className="leaderboard-score">{entry.currency.toLocaleString()} currency</span>
+                  </div>
+                ))}
+                {yourCurrencyLeaderboardEntry && (
+                  <div className="leaderboard-row leaderboard-self">
+                    <span className="leaderboard-rank">#{yourCurrencyLeaderboardEntry.rank}</span>
+                    <span className="leaderboard-name">{yourCurrencyLeaderboardEntry.username}</span>
+                    <span className="leaderboard-score">{yourCurrencyLeaderboardEntry.currency.toLocaleString()} currency</span>
+                  </div>
+                )}
+              </div>
+            </section>
+          </div>
+        )}
+
+        {showAbilityShop && (
+          <div className="leaderboard-overlay" onClick={() => setShowAbilityShop(false)}>
+            <section className="leaderboard-card ability-shop-card" onClick={(event) => event.stopPropagation()}>
+              <div className="board-heading">
+                <h2>Ability shop</h2>
+                <p>Spend battle currency on extra ability charges. Purchased charges persist between matches.</p>
+              </div>
+              <div className="shop-balance">Balance: <strong>{battleCurrency}</strong></div>
+              <div className="shop-list">
+                {ABILITY_CATEGORIES.map((category) => (
+                  <section key={category} className="shop-category">
+                    <h3>{category}</h3>
+                    <div className="shop-category-list">
+                      {Object.entries(ABILITY_CONFIGS)
+                        .filter(([, config]) => config.category === category)
+                        .map(([type, config]) => (
+                          <div key={type} className="shop-row">
+                            <div>
+                              <strong>{config.label}</strong>
+                              <p>{config.description}</p>
+                              <small>Stored charges: {abilityStock[type]}</small>
+                            </div>
+                            <button
+                              type="button"
+                              className="primary-button"
+                              onClick={() => handleBuyAbility(type)}
+                              disabled={battleCurrency < config.price}
+                            >
+                              Buy · {config.price.toLocaleString()}
+                            </button>
+                          </div>
+                        ))}
+                    </div>
+                  </section>
+                ))}
               </div>
             </section>
           </div>
@@ -1563,12 +1797,13 @@ function App() {
           <section className="abilities-panel">
             <div className="abilities-heading">
               <h2>Abilities</h2>
-              <p>Tap an ability to reveal extra squares. Cooldowns tick down after each enemy turn.</p>
+              <p>Choose up to 3 different ability types per match. Cooldowns tick down after each enemy turn.</p>
             </div>
             <div className="ability-buttons">
               {Object.entries(ABILITY_CONFIGS).map(([type, config]) => {
                 const hasUsesLeft = abilityUses[type] > 0
-                const disabled = Boolean(game.winner) || abilityCooldowns[type] > 0 || !hasUsesLeft
+                const usedTypeLimit = !usedAbilityTypes.includes(type) && usedAbilityTypes.length >= 3
+                const disabled = Boolean(game.winner) || abilityCooldowns[type] > 0 || !hasUsesLeft || usedTypeLimit
 
                 return (
                   <button
@@ -1583,7 +1818,9 @@ function App() {
                     <small>
                       {abilityCooldowns[type] > 0
                         ? `Cooldown ${abilityCooldowns[type]} · ${abilityUses[type]} use${abilityUses[type] === 1 ? '' : 's'} left`
-                        : `${config.description} · ${abilityUses[type]} use${abilityUses[type] === 1 ? '' : 's'} left`}
+                        : usedTypeLimit
+                          ? 'Three ability types already chosen'
+                          : `${config.description} · ${abilityUses[type]} use${abilityUses[type] === 1 ? '' : 's'} left`}
                     </small>
                   </button>
                 )

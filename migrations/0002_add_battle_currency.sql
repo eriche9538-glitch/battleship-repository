@@ -1,0 +1,1 @@
+ALTER TABLE users ADD COLUMN battle_currency INTEGER NOT NULL DEFAULT 0;
