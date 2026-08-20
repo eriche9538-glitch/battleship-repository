@@ -1,7 +1,7 @@
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
-// .wrangler/tmp/bundle-Oykbgh/checked-fetch.js
+// .wrangler/tmp/bundle-Hht08g/checked-fetch.js
 var urls = /* @__PURE__ */ new Set();
 function checkURL(request, init) {
   const url = request instanceof URL ? request : new URL(
@@ -117,7 +117,7 @@ async function onRequestPost3(context) {
   const { request, env } = context;
   try {
     const body = await request.json().catch(() => null);
-    const { userId } = body || {};
+    const { userId, currencyDelta = 0 } = body || {};
     if (!userId) {
       return jsonResponse3(400, { error: "Missing userId" });
     }
@@ -125,7 +125,11 @@ async function onRequestPost3(context) {
     if (!db) {
       return jsonResponse3(500, { error: "Database binding 'DB' is missing." });
     }
-    await db.prepare("UPDATE Users SET score = score + 1 WHERE id = ?1").bind(userId).run();
+    const parsedCurrencyDelta = Number(currencyDelta);
+    if (!Number.isFinite(parsedCurrencyDelta)) {
+      return jsonResponse3(400, { error: "Invalid currencyDelta" });
+    }
+    await db.prepare("UPDATE Users SET score = score + 1, battle_currency = MAX(0, COALESCE(battle_currency, 0) + ?2) WHERE id = ?1").bind(userId, parsedCurrencyDelta).run();
     return jsonResponse3(200, { success: true });
   } catch (error) {
     return jsonResponse3(500, { error: "Internal server error", details: error.message });
@@ -140,50 +144,25 @@ function jsonResponse3(status, payload) {
 }
 __name(jsonResponse3, "jsonResponse");
 
-// functions/api/leaderboard.ts
-async function onRequestGet(context) {
-  const { request, env } = context;
+// functions/api/currency.ts
+async function onRequestPost4(context) {
   try {
-    const url = new URL(request.url);
-    const userId = url.searchParams.get("userId");
-    const db = env.DB;
-    if (!db) {
+    const body = await context.request.json().catch(() => null);
+    const { userId, currencyDelta } = body || {};
+    const parsedCurrencyDelta = Number(currencyDelta);
+    if (!userId || !Number.isFinite(parsedCurrencyDelta)) {
+      return jsonResponse4(400, { error: "Missing userId or invalid currencyDelta" });
+    }
+    if (!context.env.DB) {
       return jsonResponse4(500, { error: "Database binding 'DB' is missing." });
     }
-    const topUsers = await db.prepare("SELECT id, username, score FROM Users ORDER BY COALESCE(score, 0) DESC, lower(username) ASC LIMIT 100").all();
-    const entries = (topUsers.results || []).map((user, index) => ({
-      id: user.id,
-      username: user.username,
-      score: user.score ?? 0,
-      rank: index + 1
-    }));
-    let yourEntry = null;
-    if (userId) {
-      const currentUser = await db.prepare("SELECT id, username, score FROM Users WHERE id = ?1 LIMIT 1").bind(userId).first();
-      if (currentUser) {
-        const currentScore = currentUser.score ?? 0;
-        const userRank = await db.prepare("SELECT COUNT(*) + 1 AS rank FROM Users WHERE COALESCE(score, 0) > ?1 OR (COALESCE(score, 0) = ?1 AND lower(username) < lower(?2))").bind(currentScore, currentUser.username).first();
-        const isInTop100 = entries.some((entry) => entry.id === currentUser.id);
-        if (!isInTop100) {
-          yourEntry = {
-            id: currentUser.id,
-            username: currentUser.username,
-            score: currentScore,
-            rank: userRank?.rank ?? entries.length + 1
-          };
-        }
-      }
-    }
-    return jsonResponse4(200, {
-      success: true,
-      entries,
-      yourEntry
-    });
+    await context.env.DB.prepare("UPDATE Users SET battle_currency = MAX(0, COALESCE(battle_currency, 0) + ?2) WHERE id = ?1").bind(userId, parsedCurrencyDelta).run();
+    return jsonResponse4(200, { success: true });
   } catch (error) {
     return jsonResponse4(500, { error: "Internal server error", details: error.message });
   }
 }
-__name(onRequestGet, "onRequestGet");
+__name(onRequestPost4, "onRequestPost");
 function jsonResponse4(status, payload) {
   return new Response(JSON.stringify(payload), {
     status,
@@ -191,6 +170,59 @@ function jsonResponse4(status, payload) {
   });
 }
 __name(jsonResponse4, "jsonResponse");
+
+// functions/api/leaderboard.ts
+async function onRequestGet(context) {
+  const { request, env } = context;
+  try {
+    const url = new URL(request.url);
+    const userId = url.searchParams.get("userId");
+    const currencyMode = url.searchParams.get("mode") === "currency";
+    const db = env.DB;
+    if (!db) {
+      return jsonResponse5(500, { error: "Database binding 'DB' is missing." });
+    }
+    const topUsers = currencyMode ? await db.prepare("SELECT id, username, COALESCE(battle_currency, 0) AS currency FROM Users ORDER BY COALESCE(battle_currency, 0) DESC, lower(username) ASC LIMIT 100").all() : await db.prepare("SELECT id, username, score FROM Users ORDER BY COALESCE(score, 0) DESC, lower(username) ASC LIMIT 100").all();
+    const entries = (topUsers.results || []).map((user, index) => ({
+      id: user.id,
+      username: user.username,
+      ...currencyMode ? { currency: user.currency ?? 0 } : { score: user.score ?? 0 },
+      rank: index + 1
+    }));
+    let yourEntry = null;
+    if (userId) {
+      const currentUser = currencyMode ? await db.prepare("SELECT id, username, COALESCE(battle_currency, 0) AS currency FROM Users WHERE id = ?1 LIMIT 1").bind(userId).first() : await db.prepare("SELECT id, username, score FROM Users WHERE id = ?1 LIMIT 1").bind(userId).first();
+      if (currentUser) {
+        const currentScore = currencyMode ? currentUser.currency ?? 0 : currentUser.score ?? 0;
+        const userRank = await db.prepare(currencyMode ? "SELECT COUNT(*) + 1 AS rank FROM Users WHERE COALESCE(battle_currency, 0) > ?1 OR (COALESCE(battle_currency, 0) = ?1 AND lower(username) < lower(?2))" : "SELECT COUNT(*) + 1 AS rank FROM Users WHERE COALESCE(score, 0) > ?1 OR (COALESCE(score, 0) = ?1 AND lower(username) < lower(?2))").bind(currentScore, currentUser.username).first();
+        const isInTop100 = entries.some((entry) => entry.id === currentUser.id);
+        if (!isInTop100) {
+          yourEntry = {
+            id: currentUser.id,
+            username: currentUser.username,
+            ...currencyMode ? { currency: currentScore } : { score: currentScore },
+            rank: userRank?.rank ?? entries.length + 1
+          };
+        }
+      }
+    }
+    return jsonResponse5(200, {
+      success: true,
+      entries,
+      yourEntry
+    });
+  } catch (error) {
+    return jsonResponse5(500, { error: "Internal server error", details: error.message });
+  }
+}
+__name(onRequestGet, "onRequestGet");
+function jsonResponse5(status, payload) {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { "Content-Type": "application/json; charset=utf-8" }
+  });
+}
+__name(jsonResponse5, "jsonResponse");
 
 // src/worker.ts
 var worker_default = {
@@ -207,6 +239,10 @@ var worker_default = {
     if (url.pathname === "/api/score" && request.method === "POST") {
       const context = { request, env, waitUntil: ctx.waitUntil.bind(ctx) };
       return onRequestPost3(context);
+    }
+    if (url.pathname === "/api/currency" && request.method === "POST") {
+      const context = { request, env, waitUntil: ctx.waitUntil.bind(ctx) };
+      return onRequestPost4(context);
     }
     if (url.pathname === "/api/leaderboard" && request.method === "GET") {
       const context = { request, env, waitUntil: ctx.waitUntil.bind(ctx) };
@@ -242,7 +278,7 @@ var drainBody = /* @__PURE__ */ __name(async (request, env, _ctx, middlewareCtx)
 }, "drainBody");
 var middleware_ensure_req_body_drained_default = drainBody;
 
-// .wrangler/tmp/bundle-Oykbgh/middleware-insertion-facade.js
+// .wrangler/tmp/bundle-Hht08g/middleware-insertion-facade.js
 var __INTERNAL_WRANGLER_MIDDLEWARE__ = [
   middleware_ensure_req_body_drained_default
 ];
@@ -273,7 +309,7 @@ function __facade_invoke__(request, env, ctx, dispatch, finalMiddleware) {
 }
 __name(__facade_invoke__, "__facade_invoke__");
 
-// .wrangler/tmp/bundle-Oykbgh/middleware-loader.entry.ts
+// .wrangler/tmp/bundle-Hht08g/middleware-loader.entry.ts
 var __Facade_ScheduledController__ = class ___Facade_ScheduledController__ {
   constructor(scheduledTime, cron, noRetry) {
     this.scheduledTime = scheduledTime;
