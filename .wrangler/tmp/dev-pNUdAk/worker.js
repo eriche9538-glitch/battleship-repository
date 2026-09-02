@@ -1,7 +1,7 @@
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
-// .wrangler/tmp/bundle-Hht08g/checked-fetch.js
+// .wrangler/tmp/bundle-zBgr9J/checked-fetch.js
 var urls = /* @__PURE__ */ new Set();
 function checkURL(request, init) {
   const url = request instanceof URL ? request : new URL(
@@ -84,7 +84,7 @@ async function onRequestPost2(context) {
       return jsonResponse2(500, { error: "Database binding 'DB' is missing." });
     }
     const cleanIdentifier = identifier.trim();
-    const user = await db.prepare("SELECT id, username, email, password, score FROM Users WHERE lower(email) = lower(?1) OR lower(username) = lower(?2) LIMIT 1").bind(cleanIdentifier, cleanIdentifier).first();
+    const user = await db.prepare("SELECT id, username, email, password, score, COALESCE(battle_currency, 0) AS battle_currency FROM Users WHERE lower(email) = lower(?1) OR lower(username) = lower(?2) LIMIT 1").bind(cleanIdentifier, cleanIdentifier).first();
     if (!user) {
       return jsonResponse2(401, { error: "Invalid email/username or password" });
     }
@@ -97,7 +97,7 @@ async function onRequestPost2(context) {
     }
     return jsonResponse2(200, {
       success: true,
-      user: { id: user.id, username: user.username, email: user.email, score: user.score ?? 0 }
+      user: { id: user.id, username: user.username, email: user.email, score: user.score ?? 0, battleCurrency: user.battle_currency ?? 0 }
     });
   } catch (error) {
     return jsonResponse2(500, { error: "Internal server error", details: error.message });
@@ -171,8 +171,45 @@ function jsonResponse4(status, payload) {
 }
 __name(jsonResponse4, "jsonResponse");
 
-// functions/api/leaderboard.ts
+// functions/api/account.ts
 async function onRequestGet(context) {
+  try {
+    const userId = new URL(context.request.url).searchParams.get("userId");
+    if (!userId) {
+      return jsonResponse5(400, { error: "Missing userId" });
+    }
+    if (!context.env.DB) {
+      return jsonResponse5(500, { error: "Database binding 'DB' is missing." });
+    }
+    const user = await context.env.DB.prepare("SELECT id, username, email, score, COALESCE(battle_currency, 0) AS battle_currency FROM Users WHERE id = ?1 LIMIT 1").bind(userId).first();
+    if (!user) {
+      return jsonResponse5(404, { error: "User not found" });
+    }
+    return jsonResponse5(200, {
+      success: true,
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        score: user.score ?? 0,
+        battleCurrency: user.battle_currency ?? 0
+      }
+    });
+  } catch (error) {
+    return jsonResponse5(500, { error: "Internal server error", details: error.message });
+  }
+}
+__name(onRequestGet, "onRequestGet");
+function jsonResponse5(status, payload) {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { "Content-Type": "application/json; charset=utf-8" }
+  });
+}
+__name(jsonResponse5, "jsonResponse");
+
+// functions/api/leaderboard.ts
+async function onRequestGet2(context) {
   const { request, env } = context;
   try {
     const url = new URL(request.url);
@@ -180,7 +217,7 @@ async function onRequestGet(context) {
     const currencyMode = url.searchParams.get("mode") === "currency";
     const db = env.DB;
     if (!db) {
-      return jsonResponse5(500, { error: "Database binding 'DB' is missing." });
+      return jsonResponse6(500, { error: "Database binding 'DB' is missing." });
     }
     const topUsers = currencyMode ? await db.prepare("SELECT id, username, COALESCE(battle_currency, 0) AS currency FROM Users ORDER BY COALESCE(battle_currency, 0) DESC, lower(username) ASC LIMIT 100").all() : await db.prepare("SELECT id, username, score FROM Users ORDER BY COALESCE(score, 0) DESC, lower(username) ASC LIMIT 100").all();
     const entries = (topUsers.results || []).map((user, index) => ({
@@ -206,23 +243,23 @@ async function onRequestGet(context) {
         }
       }
     }
-    return jsonResponse5(200, {
+    return jsonResponse6(200, {
       success: true,
       entries,
       yourEntry
     });
   } catch (error) {
-    return jsonResponse5(500, { error: "Internal server error", details: error.message });
+    return jsonResponse6(500, { error: "Internal server error", details: error.message });
   }
 }
-__name(onRequestGet, "onRequestGet");
-function jsonResponse5(status, payload) {
+__name(onRequestGet2, "onRequestGet");
+function jsonResponse6(status, payload) {
   return new Response(JSON.stringify(payload), {
     status,
     headers: { "Content-Type": "application/json; charset=utf-8" }
   });
 }
-__name(jsonResponse5, "jsonResponse");
+__name(jsonResponse6, "jsonResponse");
 
 // src/worker.ts
 var worker_default = {
@@ -244,9 +281,13 @@ var worker_default = {
       const context = { request, env, waitUntil: ctx.waitUntil.bind(ctx) };
       return onRequestPost4(context);
     }
-    if (url.pathname === "/api/leaderboard" && request.method === "GET") {
+    if (url.pathname === "/api/account" && request.method === "GET") {
       const context = { request, env, waitUntil: ctx.waitUntil.bind(ctx) };
       return onRequestGet(context);
+    }
+    if (url.pathname === "/api/leaderboard" && request.method === "GET") {
+      const context = { request, env, waitUntil: ctx.waitUntil.bind(ctx) };
+      return onRequestGet2(context);
     }
     if (env.ASSETS) {
       const assetResponse = await env.ASSETS.fetch(request.clone());
@@ -278,7 +319,7 @@ var drainBody = /* @__PURE__ */ __name(async (request, env, _ctx, middlewareCtx)
 }, "drainBody");
 var middleware_ensure_req_body_drained_default = drainBody;
 
-// .wrangler/tmp/bundle-Hht08g/middleware-insertion-facade.js
+// .wrangler/tmp/bundle-zBgr9J/middleware-insertion-facade.js
 var __INTERNAL_WRANGLER_MIDDLEWARE__ = [
   middleware_ensure_req_body_drained_default
 ];
@@ -309,7 +350,7 @@ function __facade_invoke__(request, env, ctx, dispatch, finalMiddleware) {
 }
 __name(__facade_invoke__, "__facade_invoke__");
 
-// .wrangler/tmp/bundle-Hht08g/middleware-loader.entry.ts
+// .wrangler/tmp/bundle-zBgr9J/middleware-loader.entry.ts
 var __Facade_ScheduledController__ = class ___Facade_ScheduledController__ {
   constructor(scheduledTime, cron, noRetry) {
     this.scheduledTime = scheduledTime;

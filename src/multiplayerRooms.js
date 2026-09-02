@@ -115,10 +115,13 @@ export function joinRandomMatch(store, player) {
   const waitingPlayer = queue[0]
 
   if (!waitingPlayer) {
+    const nextStore = { ...store }
+    delete nextStore.randomMatch
+
     return {
       roomState: null,
       nextStore: {
-        ...store,
+        ...nextStore,
         queue: [{ id: player.id, name: player.name || player.username || 'Guest' }],
       },
     }

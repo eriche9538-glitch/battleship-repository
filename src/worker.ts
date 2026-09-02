@@ -3,6 +3,7 @@ import { onRequestPost as handleSignup } from '../functions/api/signup';
 import { onRequestPost as handleSignin } from '../functions/api/signin';
 import { onRequestPost as handleScore } from '../functions/api/score';
 import { onRequestPost as handleCurrency } from '../functions/api/currency';
+import { onRequestGet as handleAccount } from '../functions/api/account';
 import { onRequestGet as handleLeaderboard } from '../functions/api/leaderboard';
 
 interface Env {
@@ -34,6 +35,11 @@ export default {
     if (url.pathname === '/api/currency' && request.method === 'POST') {
       const context = { request, env, waitUntil: ctx.waitUntil.bind(ctx) } as any;
       return handleCurrency(context);
+    }
+
+    if (url.pathname === '/api/account' && request.method === 'GET') {
+      const context = { request, env, waitUntil: ctx.waitUntil.bind(ctx) } as any;
+      return handleAccount(context);
     }
 
     if (url.pathname === '/api/leaderboard' && request.method === 'GET') {

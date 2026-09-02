@@ -12,6 +12,8 @@ const ACCOUNT_STORAGE_KEY = 'battleships-account'
 const ROOM_STORAGE_KEY = 'battleships-room-store'
 const BATTLE_CURRENCY_STORAGE_KEY = 'battleships-battle-currency'
 const ABILITY_STOCK_STORAGE_KEY = 'battleships-ability-stock'
+const ABILITY_OWNERSHIP_STORAGE_KEY = 'battleships-ability-ownership'
+const ABILITY_LOADOUT_STORAGE_KEY = 'battleships-ability-loadout'
 const DIFFICULTY_OPTIONS = {
   easy: { label: 'Easy', description: 'Random shots and a slower enemy.', delay: 320, reward: 25 },
   medium: { label: 'Medium', description: 'Targets nearby hits more often.', delay: 430, reward: 100 },
@@ -37,38 +39,39 @@ const ABILITY_CONFIGS = {
   },
   line: {
     label: 'Line Sweep',
-    category: 'Offensive',
+    category: 'Recon',
     maxCooldown: 4,
     maxUses: 4,
     price: 150,
-    description: 'Reveal 5 squares in a random horizontal or vertical line.',
+    description: 'Reveal 5 consecutive squares in a random horizontal or vertical line.',
   },
-  airstrike: { label: 'Airstrike', category: 'Offensive', maxCooldown: 2, maxUses: 0, price: 750, description: 'Bomb 3 random enemy squares.' },
-  missileBarrage: { label: 'Missile Barrage', category: 'Offensive', maxCooldown: 3, maxUses: 0, price: 1000, description: 'Launch 7 missiles at random enemy squares.' },
-  piercingShot: { label: 'Piercing Shot', category: 'Offensive', maxCooldown: 3, maxUses: 0, price: 850, description: 'Fire through 5 squares in a straight line.' },
-  crossfire: { label: 'Crossfire', category: 'Offensive', maxCooldown: 3, maxUses: 0, price: 1200, description: 'Strike two cross patterns at once.' },
-  scatterShot: { label: 'Scatter Shot', category: 'Offensive', maxCooldown: 2, maxUses: 0, price: 900, description: 'Scatter 8 shots across enemy waters.' },
-  torpedo: { label: 'Torpedo', category: 'Offensive', maxCooldown: 4, maxUses: 0, price: 1500, description: 'Torpedo a complete random row or column.' },
-  radarScan: { label: 'Radar Scan', category: 'Recon', maxCooldown: 2, maxUses: 0, price: 400, description: 'Reveal 3 hidden ship squares.' },
-  sonarPulse: { label: 'Sonar Pulse', category: 'Recon', maxCooldown: 2, maxUses: 0, price: 650, description: 'Scan a 3x3 ring around a random target.' },
-  spyPlane: { label: 'Spy Plane', category: 'Recon', maxCooldown: 2, maxUses: 0, price: 900, description: 'Reveal a hidden ship square and its nearby waters.' },
-  heatMap: { label: 'Heat Map', category: 'Recon', maxCooldown: 3, maxUses: 0, price: 750, description: 'Scan a 3x3 area of enemy waters.' },
-  shipTracker: { label: 'Ship Tracker', category: 'Recon', maxCooldown: 4, maxUses: 0, price: 1000, description: 'Track and sink a remaining 3-tile ship.' },
-  smokeScreen: { label: 'Smoke Screen', category: 'Defense', maxCooldown: 3, maxUses: 0, price: 600, description: 'Hide your fleet and skip the enemy turn.' },
-  decoyShip: { label: 'Decoy Ship', category: 'Defense', maxCooldown: 3, maxUses: 0, price: 1100, description: 'Deploy a decoy that absorbs the next enemy shot.' },
-  armorPlating: { label: 'Armor Plating', category: 'Defense', maxCooldown: 4, maxUses: 0, price: 1300, description: 'Protect your fleet from the next enemy hit.' },
-  emergencyRepair: { label: 'Emergency Repair', category: 'Defense', maxCooldown: 4, maxUses: 0, price: 1200, description: 'Repair one damaged ship tile and skip the enemy turn.' },
-  minefield: { label: 'Minefield', category: 'Defense', maxCooldown: 4, maxUses: 0, price: 1500, description: 'Seed 5 mines across random enemy waters.' },
-  shieldGenerator: { label: 'Shield Generator', category: 'Defense', maxCooldown: 5, maxUses: 0, price: 1800, description: 'Block the next two enemy shots.' },
-  tacticalSwap: { label: 'Tactical Swap', category: '☢', maxCooldown: 4, maxUses: 0, price: 40000, description: 'Reveal two random areas and evade the enemy turn.' },
-  counterattack: { label: 'Counterattack', category: '☢', maxCooldown: 4, maxUses: 0, price: 35000, description: 'Strike 3 enemy squares and retaliate if hit.' },
-  blackout: { label: 'Blackout', category: '☢', maxCooldown: 5, maxUses: 0, price: 100000, description: 'Reveal 10 random enemy squares.' },
-  ghostFleet: { label: 'Ghost Fleet', category: '☢', maxCooldown: 5, maxUses: 0, price: 150000, description: 'Reveal 12 random enemy squares and evade fire.' },
-  finalSalvo: { label: 'Final Salvo', category: '☢', maxCooldown: 6, maxUses: 0, price: 200000, description: 'Fire a devastating salvo across a random row.' },
-  nuclearStrike: { label: 'Nuclear Strike', category: '☢', maxCooldown: 8, maxUses: 0, price: 250000, description: 'Reveal every remaining enemy square.' },
+  airstrike: { label: 'Airstrike', category: 'Offensive', maxCooldown: 15, maxUses: 3, price: 750, description: 'Bomb 3 random enemy squares.' },
+  missileBarrage: { label: 'Missile Barrage', category: 'Offensive', maxCooldown: 5, maxUses: 1, price: 1000, description: 'Launch 7 missiles at random enemy squares.' },
+  piercingShot: { label: 'Piercing Shot', category: 'Offensive', maxCooldown: 12, maxUses: 0, price: 850, description: 'Fire through 5 consecutive squares in a straight line.' },
+  crossfire: { label: 'Crossfire', category: 'Offensive', maxCooldown: 15, maxUses: 1, price: 1200, description: 'Strike 1 cross pattern at once (5 squares total).' },
+  scatterShot: { label: 'Scatter Shot', category: 'Offensive', maxCooldown: 9, maxUses: 1, price: 900, description: 'Scatter 8 shots across enemy waters.' },
+  torpedo: { label: 'Torpedo', category: 'Offensive', maxCooldown: 10, maxUses: 1, price: 1500, description: 'Torpedo a complete random row or column.' },
+  radarScan: { label: 'Radar Scan', category: 'Recon', maxCooldown: 2, maxUses: 3, price: 400, description: 'Reveal 3 hidden ship squares.' },
+  sonarPulse: { label: 'Sonar Pulse', category: 'Recon', maxCooldown: 6, maxUses: 1, price: 650, description: 'Scan a 3x3 ring around a random target area.' },
+  spyPlane: { label: 'Spy Plane', category: 'Recon', maxCooldown: 10, maxUses: 4, price: 900, description: 'Reveal a hidden ship square and all nearby water squares.' },
+  heatMap: { label: 'Heat Map', category: 'Recon', maxCooldown: 5, maxUses: 1, price: 750, description: 'Scan a 3x3 area of waters.' },
+  shipTracker: { label: 'Ship Tracker', category: 'Recon', maxCooldown: 5, maxUses: 1, price: 1000, description: 'Track and sink a remaining 3-tile ship.' },
+  smokeScreen: { label: 'Smoke Screen', category: 'Defense', maxCooldown: 4, maxUses: 1, price: 600, description: 'Hide your fleet and skip the enemy turn.' },
+  decoyShip: { label: 'Decoy Ship', category: 'Defense', maxCooldown: 4, maxUses: 2, price: 1100, description: 'Deploy a decoy that absorbs the next enemy shot.' },
+  armorPlating: { label: 'Armor Plating', category: 'Defense', maxCooldown: 5, maxUses: 3, price: 1300, description: 'Protect your fleet from the next enemy hit.' },
+  emergencyRepair: { label: 'Emergency Repair', category: 'Defense', maxCooldown: 5, maxUses: 1, price: 1200, description: 'Repair one damaged ship tile and skip the enemy turn.' },
+  minefield: { label: 'Minefield', category: 'Defense', maxCooldown: 7, maxUses: 2, price: 1500, description: 'Seed 5 mines across random enemy waters.' },
+  shieldGenerator: { label: 'Shield Generator', category: 'Defense', maxCooldown: 5, maxUses: 5, price: 1800, description: 'Block the next two enemy shots.' },
+  tacticalSwap: { label: 'Tactical Swap', category: '☢', maxCooldown: 5, maxUses: 3, price: 40000, description: 'Reveal two random areas and evade the enemy turn.' },
+  counterattack: { label: 'Counterattack', category: '☢', maxCooldown: 6, maxUses: 1, price: 35000, description: 'Strike 3 enemy squares and retaliate if hit.' },
+  blackout: { label: 'Blackout', category: '☢', maxCooldown: 6, maxUses: 1, price: 100000, description: 'Reveal 10 random enemy squares.' },
+  ghostFleet: { label: 'Ghost Fleet', category: '☢', maxCooldown: 8, maxUses: 1, price: 150000, description: 'Reveal 12 random enemy squares and evade fire.' },
+  finalSalvo: { label: 'Final Salvo', category: '☢', maxCooldown: 5, maxUses: 3, price: 200000, description: 'Fire a devastating salvo across a complete random row.' },
+  nuclearStrike: { label: 'Nuclear Strike', category: '☢', maxCooldown: 8, maxUses: 2, price: 300000, description: 'Reveal 5 enemy ship tiles instantly.' },
 }
 
 const ABILITY_CATEGORIES = ['Offensive', 'Recon', 'Defense', '☢']
+const STARTER_ABILITY_TYPES = ['cross', 'ship', 'line']
 
 const createAbilityMap = (getValue) => Object.fromEntries(
   Object.entries(ABILITY_CONFIGS).map(([type, config]) => [type, getValue(config, type)]),
@@ -362,6 +365,83 @@ function getRandomLinePattern(row, col) {
   return coords.slice(0, 5)
 }
 
+function NukeAnimation({ nuke, boardRef, onComplete }) {
+  const nukeRef = useRef(null)
+
+  useEffect(() => {
+    if (!nukeRef.current || !boardRef?.current || !nuke) return
+
+    const boardRect = boardRef.current.getBoundingClientRect()
+    const boardElement = boardRef.current
+    const cells = boardElement.querySelectorAll('.cell')
+    const targetIndex = nuke.targetRow * 10 + nuke.targetCol
+    const targetCell = cells[targetIndex]
+
+    if (!targetCell) {
+      onComplete?.()
+      return
+    }
+
+    const targetRect = targetCell.getBoundingClientRect()
+    const cellSize = targetRect.width
+    const cellCenterX = targetRect.left + cellSize / 2
+    const cellCenterY = targetRect.top + cellSize / 2
+
+    // Start position: top center of screen
+    const startX = window.innerWidth / 2
+    const startY = 0
+
+    // Animate the nuke
+    animate(
+      nukeRef.current,
+      {
+        x: [startX - cellCenterX, 0],
+        y: [startY - cellCenterY, 0],
+        scale: [0.5, 1],
+      },
+      {
+        duration: 0.8,
+        easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)',
+        onComplete: () => {
+          // Show explosion animation
+          if (nukeRef.current) {
+            animate(
+              nukeRef.current,
+              {
+                scale: [1, 1.5, 0.8],
+                opacity: [1, 0.5, 0],
+              },
+              {
+                duration: 0.6,
+                onComplete: () => {
+                  onComplete?.()
+                },
+              }
+            )
+          }
+        },
+      }
+    )
+  }, [nuke, boardRef, onComplete])
+
+  return (
+    <div
+      ref={nukeRef}
+      style={{
+        position: 'fixed',
+        pointerEvents: 'none',
+        left: 0,
+        top: 0,
+        fontSize: '2.5rem',
+        filter: 'drop-shadow(0 0 20px rgba(255, 100, 0, 0.8))',
+        transformOrigin: 'center',
+      }}
+    >
+      🚀
+    </div>
+  )
+}
+
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [showSignIn, setShowSignIn] = useState(true)
@@ -403,6 +483,8 @@ function App() {
   const [hoveredPlacement, setHoveredPlacement] = useState(null)
   const [score, setScore] = useState(0)
   const [recentAbility, setRecentAbility] = useState(null)
+  const [nukeAnimation, setNukeAnimation] = useState(null)
+  const [targetingAbility, setTargetingAbility] = useState(null)
   const [abilityCooldowns, setAbilityCooldowns] = useState(() => createAbilityMap(() => 0))
   const [abilityUses, setAbilityUses] = useState(() => createAbilityMap((config) => config.maxUses))
   const [abilityStock, setAbilityStock] = useState(() => {
@@ -415,6 +497,34 @@ function App() {
       return createAbilityMap((config, type) => Number.isFinite(storedStock[type]) ? storedStock[type] : 0)
     } catch {
       return createAbilityMap(() => 0)
+    }
+  })
+  const [ownedAbilities, setOwnedAbilities] = useState(() => {
+    if (typeof window === 'undefined') {
+      return createAbilityMap(() => false)
+    }
+
+    try {
+      const storedOwnership = JSON.parse(window.localStorage.getItem(ABILITY_OWNERSHIP_STORAGE_KEY) || '{}')
+      const storedStock = JSON.parse(window.localStorage.getItem(ABILITY_STOCK_STORAGE_KEY) || '{}')
+      return createAbilityMap((_config, type) => Boolean(storedOwnership[type]) || Number(storedStock[type]) > 0)
+    } catch {
+      return createAbilityMap(() => false)
+    }
+  })
+  const [equippedAbilities, setEquippedAbilities] = useState(() => {
+    if (typeof window === 'undefined') {
+      return ['cross', 'ship', 'line']
+    }
+
+    try {
+      const storedLoadout = JSON.parse(window.localStorage.getItem(ABILITY_LOADOUT_STORAGE_KEY) || 'null')
+      const validLoadout = Array.isArray(storedLoadout)
+        ? storedLoadout.filter((type, index) => ABILITY_CONFIGS[type] && storedLoadout.indexOf(type) === index)
+        : []
+      return [...validLoadout, ...STARTER_ABILITY_TYPES.filter((type) => !validLoadout.includes(type))].slice(0, 3)
+    } catch {
+      return STARTER_ABILITY_TYPES
     }
   })
   const [usedAbilityTypes, setUsedAbilityTypes] = useState([])
@@ -460,6 +570,25 @@ function App() {
       return undefined
     }
 
+    const loadCurrentAccount = async () => {
+      try {
+        const response = await fetch(`/api/account?userId=${currentUser.id}`)
+        if (!response.ok) {
+          return
+        }
+
+        const payload = await response.json()
+        if (Number.isFinite(payload.user?.battleCurrency)) {
+          setBattleCurrency(payload.user.battleCurrency)
+        }
+        if (Number.isFinite(payload.user?.score)) {
+          setScore(payload.user.score)
+        }
+      } catch {
+        // Keep the locally cached account values when the account request fails.
+      }
+    }
+
     const loadLeaderboard = async () => {
       try {
         const response = await fetch(`/api/leaderboard?userId=${currentUser.id}`)
@@ -480,6 +609,7 @@ function App() {
       }
     }
 
+    loadCurrentAccount()
     loadLeaderboard()
 
     return undefined
@@ -506,9 +636,19 @@ function App() {
 
     window.localStorage.setItem(BATTLE_CURRENCY_STORAGE_KEY, String(battleCurrency))
     window.localStorage.setItem(ABILITY_STOCK_STORAGE_KEY, JSON.stringify(abilityStock))
+    window.localStorage.setItem(ABILITY_OWNERSHIP_STORAGE_KEY, JSON.stringify(ownedAbilities))
+    window.localStorage.setItem(ABILITY_LOADOUT_STORAGE_KEY, JSON.stringify(equippedAbilities))
 
     return undefined
-  }, [battleCurrency, abilityStock])
+  }, [battleCurrency, abilityStock, ownedAbilities, equippedAbilities])
+
+  useEffect(() => {
+    const validLoadout = equippedAbilities.filter((type) => ABILITY_CONFIGS[type].maxUses > 0 || ownedAbilities[type])
+    if (validLoadout.length !== equippedAbilities.length || validLoadout.length < 3) {
+      const completedLoadout = [...validLoadout, ...STARTER_ABILITY_TYPES.filter((type) => !validLoadout.includes(type))].slice(0, 3)
+      setEquippedAbilities(completedLoadout)
+    }
+  }, [ownedAbilities, equippedAbilities])
 
   useEffect(() => {
     if (!appRootRef.current) {
@@ -698,12 +838,45 @@ function App() {
   }
 
   const handleBuyAbility = (type) => {
-    const price = ABILITY_CONFIGS[type].price
+    const config = ABILITY_CONFIGS[type]
+    const price = config.price
+    const isStarterAbility = config.maxUses > 0
+    const currentCharges = abilityStock[type]
+    const maxCharges = config.maxUses
+
+    // Check if already at max charges
+    if (currentCharges >= maxCharges) {
+      return
+    }
+
+    // Check if can afford
     if (battleCurrency < price) {
       return
     }
 
+    // For non-starter abilities, buy the ability first if not owned
+    if (!isStarterAbility && !ownedAbilities[type]) {
+      setBattleCurrency((currentCurrency) => currentCurrency - price)
+      setOwnedAbilities((currentOwned) => ({
+        ...currentOwned,
+        [type]: true,
+      }))
+      if (currentUser?.id) {
+        void fetch('/api/currency', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: currentUser.id, currencyDelta: -price }),
+        })
+      }
+      return
+    }
+
+    // Buy a charge (for starter abilities or already owned abilities)
     setBattleCurrency((currentCurrency) => currentCurrency - price)
+    setAbilityStock((currentStock) => ({
+      ...currentStock,
+      [type]: currentStock[type] + 1,
+    }))
     if (currentUser?.id) {
       void fetch('/api/currency', {
         method: 'POST',
@@ -711,14 +884,23 @@ function App() {
         body: JSON.stringify({ userId: currentUser.id, currencyDelta: -price }),
       })
     }
-    setAbilityStock((currentStock) => ({
-      ...currentStock,
-      [type]: currentStock[type] + 1,
-    }))
-    setAbilityUses((currentUses) => ({
-      ...currentUses,
-      [type]: currentUses[type] + 1,
-    }))
+  }
+
+  const handleEquipAbility = (type) => {
+    const isStarterAbility = ABILITY_CONFIGS[type].maxUses > 0
+    if ((!ownedAbilities[type] && !isStarterAbility) || equippedAbilities.includes(type) || equippedAbilities.length >= 3) {
+      return
+    }
+
+    setEquippedAbilities((currentLoadout) => [...currentLoadout, type])
+  }
+
+  const handleUnequipAbility = (type) => {
+    if (!equippedAbilities.includes(type) || equippedAbilities.length <= 1) {
+      return
+    }
+
+    setEquippedAbilities((currentLoadout) => currentLoadout.filter((equippedType) => equippedType !== type))
   }
 
   const decrementCooldowns = () => {
@@ -801,6 +983,12 @@ function App() {
   }
 
   const handlePlayerAttack = (row, col, event) => {
+    // If in targeting mode for an ability, use that instead
+    if (targetingAbility) {
+      handleAbilityUse(targetingAbility, row, col)
+      return
+    }
+
     if (game.winner || game.enemyBoard[row][col] === 'hit' || game.enemyBoard[row][col] === 'miss') {
       return
     }
@@ -913,13 +1101,20 @@ function App() {
     return best
   }
 
-  const handleAbilityUse = (type) => {
+  const handleAbilityUse = (type, targetRow = null, targetCol = null) => {
     const config = ABILITY_CONFIGS[type]
     if (
       gameMode !== 'single' || placementActive || game.winner ||
       abilityCooldowns[type] > 0 || abilityUses[type] <= 0 ||
       (!usedAbilityTypes.includes(type) && usedAbilityTypes.length >= 3)
     ) {
+      return
+    }
+
+    // Check if ability requires targeting
+    const requiresTargeting = (type === 'cross' || type === 'finalSalvo')
+    if (requiresTargeting && (targetRow === null || targetCol === null)) {
+      setTargetingAbility(type)
       return
     }
 
@@ -935,12 +1130,18 @@ function App() {
     const randomTargets = (count) => [...availableTargets]
       .sort(() => Math.random() - 0.5)
       .slice(0, count)
-    const [row, col] = availableTargets[Math.floor(Math.random() * availableTargets.length)] || [0, 0]
+    
+    // Use provided target or random if not targeting
+    const [row, col] = targetRow !== null && targetCol !== null
+      ? [targetRow, targetCol]
+      : availableTargets[Math.floor(Math.random() * availableTargets.length)] || [0, 0]
     let coords = [[row, col]]
     let skipEnemyTurn = false
     let nextPlayerBoard = game.playerBoard
 
-    if (type === 'cross') coords = getCrossPattern(row, col)
+    if (type === 'cross') {
+      coords = getCrossPattern(row, col)
+    }
     if (type === 'ship' || type === 'shipTracker') coords = getThreeTileShipCoords(game.enemyLayout) || getShipPattern(row, col)
     if (type === 'line' || type === 'piercingShot') coords = getRandomLinePattern(row, col)
     if (type === 'airstrike') coords = randomTargets(3)
@@ -954,10 +1155,13 @@ function App() {
       .filter(([targetRow, targetCol]) => targetRow >= 0 && targetRow < GRID_SIZE && targetCol >= 0 && targetCol < GRID_SIZE)
     if (type === 'heatMap') coords = Array.from({ length: 9 }, (_, index) => [row + Math.floor(index / 3) - 1, col + (index % 3) - 1])
       .filter(([targetRow, targetCol]) => targetRow >= 0 && targetRow < GRID_SIZE && targetCol >= 0 && targetCol < GRID_SIZE)
-    if (type === 'torpedo' || type === 'finalSalvo') {
+    if (type === 'torpedo') {
       coords = Math.random() < 0.5
         ? Array.from({ length: GRID_SIZE }, (_, targetCol) => [row, targetCol])
         : Array.from({ length: GRID_SIZE }, (_, targetRow) => [targetRow, col])
+    }
+    if (type === 'finalSalvo') {
+      coords = Array.from({ length: GRID_SIZE }, (_, targetCol) => [row, targetCol])
     }
     if (type === 'radarScan') coords = game.enemyLayout.flatMap((boardRow, targetRow) => boardRow.map((cell, targetCol) => cell === 'ship' ? [targetRow, targetCol] : null).filter(Boolean)).filter(([targetRow, targetCol]) => game.enemyBoard[targetRow][targetCol] === 'water').slice(0, 3)
     if (type === 'spyPlane') {
@@ -984,7 +1188,15 @@ function App() {
       skipEnemyTurn = true
       coords = []
     }
-    if (type === 'nuclearStrike') coords = availableTargets
+    if (type === 'nuclearStrike') {
+      coords = game.enemyLayout.flatMap((boardRow, targetRow) => boardRow
+        .map((cell, targetCol) => cell === 'ship' && game.enemyBoard[targetRow][targetCol] === 'water'
+          ? [targetRow, targetCol]
+          : null)
+        .filter(Boolean))
+        .sort(() => Math.random() - 0.5)
+        .slice(0, 5)
+    }
 
     const nextEnemyBoard = game.enemyBoard.map((boardRow) => [...boardRow])
     let revealedCount = 0
@@ -1001,6 +1213,15 @@ function App() {
 
     if (!skipEnemyTurn && revealedCount === 0 && type !== 'emergencyRepair') return
 
+    if (type === 'nuclearStrike' && uniqueCoords.length > 0) {
+      setNukeAnimation({
+        targetRow: uniqueCoords[0][0],
+        targetCol: uniqueCoords[0][1],
+        id: `nuke-${Date.now()}`,
+      })
+    }
+
+    setTargetingAbility(null)
     setRecentAbility({ type, coords: uniqueCoords, id: `${type}-${Date.now()}` })
     setUsedAbilityTypes((currentTypes) => currentTypes.includes(type) ? currentTypes : [...currentTypes, type])
     setAbilityCooldowns((prev) => ({ ...prev, [type]: config.maxCooldown }))
@@ -1029,7 +1250,7 @@ function App() {
     setPlacementActive(true)
     setHoveredPlacement(null)
     setAbilityCooldowns(createAbilityMap(() => 0))
-    setAbilityUses(createAbilityMap((config, type) => config.maxUses + abilityStock[type]))
+    setAbilityUses(createAbilityMap((config, type) => equippedAbilities.includes(type) ? config.maxUses + abilityStock[type] : 0))
     setUsedAbilityTypes([])
     setDefenseCharges(0)
     setGame({ ...createGameState(nextDifficulty), status: 'Place your fleet before the match starts.' })
@@ -1062,6 +1283,10 @@ function App() {
     if (nextPlacementIndex >= SHIP_SIZES.length) {
       const enemyFleet = createFleetBoard()
       setGame(createGameState(difficulty, placedBoard, enemyFleet.board))
+      setAbilityCooldowns(createAbilityMap(() => 0))
+      setAbilityUses(createAbilityMap((config, type) => equippedAbilities.includes(type) ? config.maxUses + abilityStock[type] : 0))
+      setUsedAbilityTypes([])
+      setDefenseCharges(0)
       setPlacementActive(false)
       setHoveredPlacement(null)
       return
@@ -1078,8 +1303,16 @@ function App() {
 
     const syncRoomState = () => {
       const store = readRoomStore(window.localStorage, ROOM_STORAGE_KEY)
-      const nextRoom = activeRoomCode ? store[activeRoomCode] || null : null
+      const roomKey = multiplayerType === 'random' ? 'randomMatch' : activeRoomCode
+      const storedRoom = roomKey ? store[roomKey] || null : null
+      const nextRoom = storedRoom?.game
+        ? { ...storedRoom, status: storedRoom.game.status === 'finished' ? 'finished' : 'matched' }
+        : storedRoom
       setRoomState(nextRoom)
+
+      if (storedRoom?.game) {
+        setMultiplayerGame(storedRoom.game)
+      }
     }
 
     const handleStorage = (event) => {
@@ -1107,7 +1340,7 @@ function App() {
       window.removeEventListener('storage', handleStorage)
       channel?.close()
     }
-  }, [activeRoomCode])
+  }, [activeRoomCode, multiplayerType])
 
   const persistRoomState = (nextRoomState) => {
     if (typeof window === 'undefined') {
@@ -1141,6 +1374,7 @@ function App() {
       setRoomCodeInput('')
       setMultiplayerType('random')
       setRoomState(null)
+      setMultiplayerGame(null)
       return
     }
 
@@ -1149,6 +1383,7 @@ function App() {
     setRoomCodeInput('')
     setMultiplayerType('random')
     setRoomState(null)
+    setMultiplayerGame(null)
   }
 
   const handleRandomMatch = () => {
@@ -1166,14 +1401,13 @@ function App() {
     setActiveRoomCode('')
     setRoomCodeInput('')
     setRoomState(match.roomState)
+    let nextStore = match.nextStore
     if (match.roomState?.status === 'matched') {
       const nextMultiplayerGame = createMultiplayerMatchState('random-match', match.roomState.players)
       setMultiplayerGame(nextMultiplayerGame)
-      const store = readRoomStore(window.localStorage, ROOM_STORAGE_KEY)
-      store.randomMatch = nextMultiplayerGame
-      writeRoomStore(window.localStorage, { ...store, randomMatch: nextMultiplayerGame }, ROOM_STORAGE_KEY)
+      nextStore = { ...nextStore, randomMatch: nextMultiplayerGame }
     }
-    writeRoomStore(window.localStorage, match.nextStore, ROOM_STORAGE_KEY)
+    writeRoomStore(window.localStorage, nextStore, ROOM_STORAGE_KEY)
 
     if (typeof window.BroadcastChannel === 'function') {
       const channel = new window.BroadcastChannel('battleships-rooms')
@@ -1199,6 +1433,7 @@ function App() {
     setActiveRoomCode(normalizedCode)
     setRoomCodeInput(normalizedCode)
     setRoomState(nextRoomState)
+    setMultiplayerGame(null)
     persistRoomState(nextRoomState)
   }
 
@@ -1224,6 +1459,7 @@ function App() {
       const nextMultiplayerGame = createMultiplayerMatchState(nextRoomState.code, nextRoomState.players)
       setMultiplayerGame(nextMultiplayerGame)
       persistRoomState({ ...nextRoomState, game: nextMultiplayerGame })
+      return
     }
     persistRoomState(nextRoomState)
   }
@@ -1346,6 +1582,7 @@ function App() {
         onSignInComplete={(user) => {
           setCurrentUser(user)
           setScore(user?.score ?? 0)
+          setBattleCurrency(user?.battleCurrency ?? 0)
           if (typeof window !== 'undefined') {
             window.localStorage.setItem(ACCOUNT_STORAGE_KEY, JSON.stringify(user))
           }
@@ -1360,6 +1597,7 @@ function App() {
             onSignUpComplete={(user) => {
           setCurrentUser(user)
           setScore(user?.score ?? 0)
+          setBattleCurrency(user?.battleCurrency ?? 0)
           if (typeof window !== 'undefined') {
             window.localStorage.setItem(ACCOUNT_STORAGE_KEY, JSON.stringify(user))
           }
@@ -1591,9 +1829,10 @@ function App() {
             <section className="leaderboard-card ability-shop-card" onClick={(event) => event.stopPropagation()}>
               <div className="board-heading">
                 <h2>Ability shop</h2>
-                <p>Spend battle currency on extra ability charges. Purchased charges persist between matches.</p>
+                <p>Purchase ability charges with battle currency. Starter abilities are free to use; purchased abilities unlock with the first buy.</p>
               </div>
               <div className="shop-balance">Balance: <strong>{battleCurrency}</strong></div>
+              <div className="shop-loadout">Equipped: <strong>{equippedAbilities.map((type) => ABILITY_CONFIGS[type].label).join(', ')}</strong></div>
               <div className="shop-list">
                 {ABILITY_CATEGORIES.map((category) => (
                   <section key={category} className="shop-category">
@@ -1606,16 +1845,18 @@ function App() {
                             <div>
                               <strong>{config.label}</strong>
                               <p>{config.description}</p>
-                              <small>Stored charges: {abilityStock[type]}</small>
+                              <small>{ownedAbilities[type] ? 'Owned' : 'Not owned'} · Stored charges: {abilityStock[type]} / {config.maxUses}</small>
                             </div>
-                            <button
-                              type="button"
-                              className="primary-button"
-                              onClick={() => handleBuyAbility(type)}
-                              disabled={battleCurrency < config.price}
-                            >
-                              Buy · {config.price.toLocaleString()}
-                            </button>
+                            <div className="shop-actions">
+                              <button
+                                type="button"
+                                className="primary-button"
+                                onClick={() => handleBuyAbility(type)}
+                                disabled={abilityStock[type] >= config.maxUses && (ownedAbilities[type] || config.maxUses > 0) || battleCurrency < config.price}
+                              >
+                                {abilityStock[type] >= config.maxUses ? 'Max charges' : !ownedAbilities[type] && config.maxUses === 0 ? `Buy ability · ${config.price.toLocaleString()}` : `Buy charge · ${config.price.toLocaleString()}`}
+                              </button>
+                            </div>
                           </div>
                         ))}
                     </div>
@@ -1624,6 +1865,14 @@ function App() {
               </div>
             </section>
           </div>
+        )}
+
+        {nukeAnimation && (
+          <NukeAnimation
+            nuke={nukeAnimation}
+            boardRef={enemyBoardRef}
+            onComplete={() => setNukeAnimation(null)}
+          />
         )}
 
         <section className="boards-grid">
@@ -1756,9 +2005,9 @@ function App() {
               <article className="board-card">
                 <div className="board-heading">
                   <h2>Enemy waters</h2>
-                  <p>Click a square to fire. Hidden ships are placed at random.</p>
+                  <p>{targetingAbility ? `Click to target ${ABILITY_CONFIGS[targetingAbility].label.toLowerCase()}` : 'Click a square to fire. Hidden ships are placed at random.'}</p>
                 </div>
-                <div ref={enemyBoardRef} className="board enemy-board" aria-label="Enemy waters grid">
+                <div ref={enemyBoardRef} className={`board enemy-board ${targetingAbility ? 'targeting-mode' : ''}`} aria-label="Enemy waters grid">
                   {game.enemyBoard.map((row, rowIndex) =>
                     row.map((cell, colIndex) => {
                       const isShot = cell === 'hit' || cell === 'miss'
@@ -1769,13 +2018,13 @@ function App() {
                           key={`enemy-${rowIndex}-${colIndex}`}
                           type="button"
                           data-hit-coord={`${rowIndex}-${colIndex}`}
-                          className={`cell enemy-cell ${isShot ? (cell === 'hit' ? 'hit' : 'miss') : hoveredEnemyTarget?.[0] === rowIndex && hoveredEnemyTarget?.[1] === colIndex ? 'targeted' : 'water'}`}
+                          className={`cell enemy-cell ${isShot ? (cell === 'hit' ? 'hit' : 'miss') : targetingAbility ? 'targeting-target' : hoveredEnemyTarget?.[0] === rowIndex && hoveredEnemyTarget?.[1] === colIndex ? 'targeted' : 'water'}`}
                           onClick={(event) => handlePlayerAttack(rowIndex, colIndex, event)}
                           onMouseEnter={() => setHoveredEnemyTarget([rowIndex, colIndex])}
                           onMouseLeave={() => setHoveredEnemyTarget(null)}
                           onFocus={() => setHoveredEnemyTarget([rowIndex, colIndex])}
                           onBlur={() => setHoveredEnemyTarget(null)}
-                          disabled={Boolean(game.winner) || isShot}
+                          disabled={Boolean(game.winner) || (isShot && !targetingAbility)}
                           aria-label={`Fire at row ${rowIndex + 1}, column ${colIndex + 1}`}
                         >
                           {isRecentHit ? (
@@ -1800,7 +2049,8 @@ function App() {
               <p>Choose up to 3 different ability types per match. Cooldowns tick down after each enemy turn.</p>
             </div>
             <div className="ability-buttons">
-              {Object.entries(ABILITY_CONFIGS).map(([type, config]) => {
+              {equippedAbilities.map((type) => {
+                const config = ABILITY_CONFIGS[type]
                 const hasUsesLeft = abilityUses[type] > 0
                 const usedTypeLimit = !usedAbilityTypes.includes(type) && usedAbilityTypes.length >= 3
                 const disabled = Boolean(game.winner) || abilityCooldowns[type] > 0 || !hasUsesLeft || usedTypeLimit
@@ -1809,15 +2059,17 @@ function App() {
                   <button
                     key={type}
                     type="button"
-                    className="ability-button"
+                    className={`ability-button ${targetingAbility === type ? 'targeting' : ''}`}
                     onClick={() => handleAbilityUse(type)}
                     disabled={disabled}
                     aria-label={`${config.label}: ${config.description}`}
                   >
                     <span>{config.label}</span>
                     <small>
-                      {abilityCooldowns[type] > 0
-                        ? `Cooldown ${abilityCooldowns[type]} · ${abilityUses[type]} use${abilityUses[type] === 1 ? '' : 's'} left`
+                      {targetingAbility === type
+                        ? 'Click a square to target'
+                        : abilityCooldowns[type] > 0
+                          ? `Cooldown ${abilityCooldowns[type]} · ${abilityUses[type]} use${abilityUses[type] === 1 ? '' : 's'} left`
                         : usedTypeLimit
                           ? 'Three ability types already chosen'
                           : `${config.description} · ${abilityUses[type]} use${abilityUses[type] === 1 ? '' : 's'} left`}
