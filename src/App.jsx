@@ -3,7 +3,7 @@ import { animate } from 'motion'
 import './App.css'
 import SignUp from './SignUp'
 import SignIn from './SignIn'
-import { applyMultiplayerAttack, createMultiplayerMatchState, expireMultiplayerRound, getMultiplayerPlayerState, getOpponentName, joinRandomMatch, joinRoomState, normalizeRoomCode, readRoomStore, writeRoomStore } from './multiplayerRooms'
+import { applyMultiplayerAbility, applyMultiplayerAttack, createMultiplayerMatchState, expireMultiplayerRound, getMultiplayerPlayerState, getOpponentName, joinRandomMatch, joinRoomState, normalizeRoomCode, readRoomStore, writeRoomStore } from './multiplayerRooms'
 import { incrementUserScore } from './scoreService'
 
 const GRID_SIZE = 10
@@ -580,6 +580,7 @@ function App() {
   const playerBoardRef = useRef(null)
   const statusRef = useRef(null)
   const multiplayerRoundRef = useRef(null)
+  const multiplayerCooldownRoundRef = useRef(null)
 
   const enemyHits = game.enemyBoard.flat().filter((cell) => cell === 'hit').length
   const playerHits = game.playerBoard.flat().filter((cell) => cell === 'hit').length
@@ -1160,8 +1161,35 @@ function App() {
 
   const handleAbilityUse = (type, targetRow = null, targetCol = null) => {
     const config = ABILITY_CONFIGS[type]
+    if (gameMode === 'multiplayer') {
+      if (placementActive || !multiplayerGame || multiplayerGame.winner || multiplayerGame.turnPlayerId !== (currentUser?.email || currentUser?.username || 'guest') || abilityCooldowns[type] > 0 || abilityUses[type] <= 0) {
+        return
+      }
+
+      const requiresTargeting = type === 'cross' || type === 'finalSalvo'
+      if (requiresTargeting && (targetRow === null || targetCol === null)) {
+        setTargetingAbility(type)
+        return
+      }
+
+      const activePlayer = getMultiplayerPlayerState(multiplayerGame, currentUser?.email || currentUser?.username || 'guest')
+      const nextRoom = applyMultiplayerAbility(multiplayerGame, activePlayer?.id, type, targetRow, targetCol)
+      if (nextRoom === multiplayerGame) {
+        return
+      }
+
+      setTargetingAbility(null)
+      setAbilityUses((prev) => ({ ...prev, [type]: Math.max(0, prev[type] - 1) }))
+      setAbilityCooldowns((prev) => ({ ...prev, [type]: config.maxCooldown }))
+      setMultiplayerGame(nextRoom)
+      const store = readRoomStore(window.localStorage, ROOM_STORAGE_KEY)
+      store[normalizeRoomCode(nextRoom.code)] = { ...roomState, game: nextRoom }
+      writeRoomStore(window.localStorage, store, ROOM_STORAGE_KEY)
+      return
+    }
+
     if (
-      gameMode !== 'single' || placementActive || game.winner ||
+      placementActive || game.winner ||
       !game.playerTurn ||
       abilityCooldowns[type] > 0 || abilityUses[type] <= 0 ||
       (!usedAbilityTypes.includes(type) && usedAbilityTypes.length >= 3)
@@ -1527,6 +1555,11 @@ function App() {
       return
     }
 
+    if (targetingAbility) {
+      handleAbilityUse(targetingAbility, row, col)
+      return
+    }
+
     const activePlayer = getMultiplayerPlayerState(multiplayerGame, currentUser.email)
     const currentPlayerId = activePlayer?.id || currentUser.email
 
@@ -1590,6 +1623,28 @@ function App() {
     const timer = window.setInterval(syncRound, 250)
     return () => window.clearInterval(timer)
   }, [currentView, placementActive, gameMode, multiplayerGame, currentUser, roomState])
+
+  useEffect(() => {
+    if (gameMode !== 'multiplayer' || !multiplayerGame || multiplayerGame.winner) {
+      multiplayerCooldownRoundRef.current = null
+      return undefined
+    }
+
+    const playerId = currentUser?.email || currentUser?.username || 'guest'
+    const previousRound = multiplayerCooldownRoundRef.current
+    const opponentFinishedRound = previousRound && previousRound.turnPlayerId !== playerId && multiplayerGame.turnPlayerId === playerId
+
+    if (opponentFinishedRound) {
+      decrementCooldowns()
+    }
+
+    multiplayerCooldownRoundRef.current = {
+      roundStartedAt: multiplayerGame.roundStartedAt,
+      turnPlayerId: multiplayerGame.turnPlayerId,
+    }
+
+    return undefined
+  }, [gameMode, multiplayerGame?.roundStartedAt, multiplayerGame?.turnPlayerId, multiplayerGame?.winner, currentUser])
 
   const roomCode = activeRoomCode || (currentUser?.username
     ? `${currentUser.username.toLowerCase().replace(/\s+/g, '-')}-${Math.max(100, (currentUser.username.length + wins) % 900 + 100)}`
@@ -2163,18 +2218,19 @@ function App() {
           )}
         </section>
 
-        {!placementActive && gameMode === 'single' && (
+        {!placementActive && (gameMode === 'single' || multiplayerGame) && (
           <section className="abilities-panel">
             <div className="abilities-heading">
               <h2>Abilities</h2>
-              <p>Choose up to 3 different ability types per match. Cooldowns tick down after each enemy turn.</p>
+              <p>Choose up to 3 different ability types per match. Cooldowns tick down after each round.</p>
             </div>
             <div className="ability-buttons">
               {equippedAbilities.map((type) => {
                 const config = ABILITY_CONFIGS[type]
                 const hasUsesLeft = abilityUses[type] > 0
                 const usedTypeLimit = !usedAbilityTypes.includes(type) && usedAbilityTypes.length >= 3
-                const disabled = Boolean(game.winner) || abilityCooldowns[type] > 0 || !hasUsesLeft || usedTypeLimit
+                const multiplayerPlayerId = currentUser?.email || currentUser?.username || 'guest'
+                const disabled = Boolean(game.winner) || Boolean(multiplayerGame?.winner) || abilityCooldowns[type] > 0 || !hasUsesLeft || usedTypeLimit || (gameMode === 'multiplayer' && multiplayerGame?.turnPlayerId !== multiplayerPlayerId)
 
                 return (
                   <button

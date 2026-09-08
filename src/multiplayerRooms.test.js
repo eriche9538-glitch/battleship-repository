@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { createMultiplayerMatchState, expireMultiplayerRound, joinRoomState, normalizeRoomCode, getOpponentName, joinRandomMatch, ROUND_DURATION_MS } from './multiplayerRooms.js'
+import { applyMultiplayerAbility, createMultiplayerMatchState, expireMultiplayerRound, joinRoomState, normalizeRoomCode, getOpponentName, joinRandomMatch, ROUND_DURATION_MS } from './multiplayerRooms.js'
 
 test('joinRoomState marks the room as matched when two players join', () => {
   const first = joinRoomState(null, { id: 'p1', name: 'Alice' })
@@ -45,4 +45,15 @@ test('expireMultiplayerRound leaves an active round unchanged', () => {
   const room = createMultiplayerMatchState('room', [{ id: 'p1', name: 'Alice' }, { id: 'p2', name: 'Bob' }])
 
   assert.strictEqual(expireMultiplayerRound(room, room.roundStartedAt + ROUND_DURATION_MS - 1), room)
+})
+
+test('applyMultiplayerAbility applies a targeted cross to the opponent board', () => {
+  const room = createMultiplayerMatchState('room', [{ id: 'p1', name: 'Alice' }, { id: 'p2', name: 'Bob' }])
+  const nextRoom = applyMultiplayerAbility(room, 'p1', 'cross', 0, 0)
+  const playerState = nextRoom.players.find((player) => player.id === 'p1')
+  const opponentState = nextRoom.players.find((player) => player.id === 'p2')
+
+  assert.equal(nextRoom.turnPlayerId, 'p2')
+  assert.equal(playerState.enemyBoard[0][0] === 'hit' || playerState.enemyBoard[0][0] === 'miss', true)
+  assert.equal(opponentState.playerBoard[0][0] === 'hit' || opponentState.playerBoard[0][0] === 'miss', true)
 })

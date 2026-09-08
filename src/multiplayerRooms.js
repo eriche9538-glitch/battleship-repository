@@ -55,6 +55,14 @@ function isFleetSunk(layout, board) {
   return true
 }
 
+function getCrossPattern(row, col) {
+  return [[row, col], [row - 1, col], [row + 1, col], [row, col - 1], [row, col + 1]]
+}
+
+function getLinePattern(row, col) {
+  return Array.from({ length: 5 }, (_, offset) => [row, col + offset])
+}
+
 export function normalizeRoomCode(code) {
   return String(code ?? '').trim().toLowerCase()
 }
@@ -247,6 +255,80 @@ export function applyMultiplayerAttack(room, playerId, row, col) {
     ...room,
     players: nextPlayers,
     turnPlayerId: winner ? room.turnPlayerId : nextTurnPlayerId,
+    roundStartedAt: winner ? room.roundStartedAt : Date.now(),
+    winner,
+    status: winner ? 'finished' : 'playing',
+  }
+}
+
+export function applyMultiplayerAbility(room, playerId, type, targetRow = null, targetCol = null) {
+  if (!room?.players || room.status !== 'playing') {
+    return room
+  }
+
+  const currentPlayer = room.players.find((player) => player.id === playerId)
+  const opponentPlayer = room.players.find((player) => player.id !== playerId)
+  if (!currentPlayer || !opponentPlayer || room.turnPlayerId !== playerId) {
+    return room
+  }
+
+  const availableTargets = currentPlayer.enemyBoard.flatMap((boardRow, row) => boardRow
+    .map((cell, col) => cell === 'water' ? [row, col] : null)
+    .filter(Boolean))
+  const [row, col] = targetRow === null || targetCol === null
+    ? availableTargets[Math.floor(Math.random() * availableTargets.length)] || [0, 0]
+    : [targetRow, targetCol]
+  let coords = [[row, col]]
+
+  if (type === 'cross') coords = getCrossPattern(row, col)
+  if (type === 'line' || type === 'piercingShot') coords = getLinePattern(row, col)
+  if (type === 'airstrike' || type === 'radarScan') coords = availableTargets.slice(0, 3)
+  if (type === 'missileBarrage') coords = availableTargets.slice(0, 7)
+  if (type === 'scatterShot') coords = availableTargets.slice(0, 8)
+  if (type === 'blackout') coords = availableTargets.slice(0, 10)
+  if (type === 'ghostFleet') coords = availableTargets.slice(0, 12)
+  if (type === 'minefield') coords = availableTargets.slice(0, 5)
+  if (type === 'crossfire') coords = [...getCrossPattern(row, col), ...getCrossPattern((row + 4) % GRID_SIZE, (col + 4) % GRID_SIZE)]
+  if (type === 'sonarPulse') coords = getCrossPattern(row, col).concat([[row - 1, col - 1], [row - 1, col + 1], [row + 1, col - 1], [row + 1, col + 1]])
+  if (type === 'heatMap') coords = Array.from({ length: 9 }, (_, index) => [row + Math.floor(index / 3) - 1, col + (index % 3) - 1])
+  if (type === 'torpedo' || type === 'finalSalvo') coords = Array.from({ length: GRID_SIZE }, (_, index) => [row, index])
+  if (type === 'spyPlane') coords = getCrossPattern(row, col)
+  if (type === 'nuclearStrike') coords = opponentPlayer.playerLayout.flatMap((boardRow, targetRow) => boardRow
+    .map((cell, targetCol) => cell === 'ship' ? [targetRow, targetCol] : null)
+    .filter(Boolean)
+    .slice(0, 5))
+  if (type === 'ship' || type === 'shipTracker') {
+    const shipCell = opponentPlayer.playerLayout.flatMap((boardRow, targetRow) => boardRow
+      .map((cell, targetCol) => cell === 'ship' && currentPlayer.enemyBoard[targetRow][targetCol] === 'water' ? [targetRow, targetCol] : null)
+      .filter(Boolean))[0]
+    coords = shipCell ? [shipCell] : []
+  }
+
+  const uniqueCoords = coords.filter(([targetRow, targetCol], index, values) => (
+    targetRow >= 0 && targetRow < GRID_SIZE && targetCol >= 0 && targetCol < GRID_SIZE &&
+    values.findIndex(([sameRow, sameCol]) => sameRow === targetRow && sameCol === targetCol) === index
+  ))
+  const nextEnemyBoard = currentPlayer.enemyBoard.map((boardRow) => [...boardRow])
+  const nextOpponentBoard = opponentPlayer.playerBoard.map((boardRow) => [...boardRow])
+
+  uniqueCoords.forEach(([targetRow, targetCol]) => {
+    if (nextEnemyBoard[targetRow][targetCol] !== 'water') return
+    const hit = opponentPlayer.playerLayout[targetRow][targetCol] === 'ship'
+    nextEnemyBoard[targetRow][targetCol] = hit ? 'hit' : 'miss'
+    nextOpponentBoard[targetRow][targetCol] = hit ? 'hit' : 'miss'
+  })
+
+  const nextPlayers = room.players.map((player) => {
+    if (player.id === playerId) return { ...player, enemyBoard: nextEnemyBoard }
+    if (player.id === opponentPlayer.id) return { ...player, playerBoard: nextOpponentBoard }
+    return player
+  })
+  const winner = isFleetSunk(opponentPlayer.playerLayout, nextOpponentBoard) ? playerId : null
+
+  return {
+    ...room,
+    players: nextPlayers,
+    turnPlayerId: winner ? room.turnPlayerId : opponentPlayer.id,
     roundStartedAt: winner ? room.roundStartedAt : Date.now(),
     winner,
     status: winner ? 'finished' : 'playing',
