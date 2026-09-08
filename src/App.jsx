@@ -3,10 +3,11 @@ import { animate } from 'motion'
 import './App.css'
 import SignUp from './SignUp'
 import SignIn from './SignIn'
-import { applyMultiplayerAttack, createMultiplayerMatchState, getMultiplayerPlayerState, getOpponentName, joinRandomMatch, joinRoomState, normalizeRoomCode, readRoomStore, writeRoomStore } from './multiplayerRooms'
+import { applyMultiplayerAttack, createMultiplayerMatchState, expireMultiplayerRound, getMultiplayerPlayerState, getOpponentName, joinRandomMatch, joinRoomState, normalizeRoomCode, readRoomStore, writeRoomStore } from './multiplayerRooms'
 import { incrementUserScore } from './scoreService'
 
 const GRID_SIZE = 10
+const ROUND_DURATION_SECONDS = 30
 const SHIP_SIZES = [5, 4, 3, 3, 2]
 const ACCOUNT_STORAGE_KEY = 'battleships-account'
 const ROOM_STORAGE_KEY = 'battleships-room-store'
@@ -22,7 +23,7 @@ const DIFFICULTY_OPTIONS = {
 
 const ABILITY_CONFIGS = {
   cross: {
-    label: 'Cross Scan',
+    label: 'Hexagonal Omnisight',
     category: 'Recon',
     maxCooldown: 2,
     maxUses: 3,
@@ -30,7 +31,7 @@ const ABILITY_CONFIGS = {
     description: 'Reveal a cross pattern of 5 squares.',
   },
   ship: {
-    label: 'Ship Scan',
+    label: 'Dreadnought Acquisition',
     category: 'Recon',
     maxCooldown: 3,
     maxUses: 2,
@@ -38,36 +39,36 @@ const ABILITY_CONFIGS = {
     description: 'Reveal and sink a 3-cell enemy ship.',
   },
   line: {
-    label: 'Line Sweep',
+    label: 'Horizon Severance',
     category: 'Recon',
     maxCooldown: 4,
     maxUses: 4,
     price: 150,
     description: 'Reveal 5 consecutive squares in a random horizontal or vertical line.',
   },
-  airstrike: { label: 'Airstrike', category: 'Offensive', maxCooldown: 15, maxUses: 3, price: 750, description: 'Bomb 3 random enemy squares.' },
-  missileBarrage: { label: 'Missile Barrage', category: 'Offensive', maxCooldown: 5, maxUses: 1, price: 1000, description: 'Launch 7 missiles at random enemy squares.' },
-  piercingShot: { label: 'Piercing Shot', category: 'Offensive', maxCooldown: 12, maxUses: 0, price: 850, description: 'Fire through 5 consecutive squares in a straight line.' },
-  crossfire: { label: 'Crossfire', category: 'Offensive', maxCooldown: 15, maxUses: 1, price: 1200, description: 'Strike 1 cross pattern at once (5 squares total).' },
-  scatterShot: { label: 'Scatter Shot', category: 'Offensive', maxCooldown: 9, maxUses: 1, price: 900, description: 'Scatter 8 shots across enemy waters.' },
-  torpedo: { label: 'Torpedo', category: 'Offensive', maxCooldown: 10, maxUses: 1, price: 1500, description: 'Torpedo a complete random row or column.' },
-  radarScan: { label: 'Radar Scan', category: 'Recon', maxCooldown: 2, maxUses: 3, price: 400, description: 'Reveal 3 hidden ship squares.' },
-  sonarPulse: { label: 'Sonar Pulse', category: 'Recon', maxCooldown: 6, maxUses: 1, price: 650, description: 'Scan a 3x3 ring around a random target area.' },
-  spyPlane: { label: 'Spy Plane', category: 'Recon', maxCooldown: 10, maxUses: 4, price: 900, description: 'Reveal a hidden ship square and all nearby water squares.' },
-  heatMap: { label: 'Heat Map', category: 'Recon', maxCooldown: 5, maxUses: 1, price: 750, description: 'Scan a 3x3 area of waters.' },
-  shipTracker: { label: 'Ship Tracker', category: 'Recon', maxCooldown: 5, maxUses: 1, price: 1000, description: 'Track and sink a remaining 3-tile ship.' },
-  smokeScreen: { label: 'Smoke Screen', category: 'Defense', maxCooldown: 4, maxUses: 1, price: 600, description: 'Hide your fleet and skip the enemy turn.' },
-  decoyShip: { label: 'Decoy Ship', category: 'Defense', maxCooldown: 4, maxUses: 2, price: 1100, description: 'Deploy a decoy that absorbs the next enemy shot.' },
-  armorPlating: { label: 'Armor Plating', category: 'Defense', maxCooldown: 5, maxUses: 3, price: 1300, description: 'Protect your fleet from the next enemy hit.' },
-  emergencyRepair: { label: 'Emergency Repair', category: 'Defense', maxCooldown: 5, maxUses: 1, price: 1200, description: 'Repair one damaged ship tile and skip the enemy turn.' },
-  minefield: { label: 'Minefield', category: 'Defense', maxCooldown: 7, maxUses: 2, price: 1500, description: 'Seed 5 mines across random enemy waters.' },
-  shieldGenerator: { label: 'Shield Generator', category: 'Defense', maxCooldown: 5, maxUses: 5, price: 1800, description: 'Block the next two enemy shots.' },
-  tacticalSwap: { label: 'Tactical Swap', category: '☢', maxCooldown: 5, maxUses: 3, price: 40000, description: 'Reveal two random areas and evade the enemy turn.' },
-  counterattack: { label: 'Counterattack', category: '☢', maxCooldown: 6, maxUses: 1, price: 35000, description: 'Strike 3 enemy squares and retaliate if hit.' },
-  blackout: { label: 'Blackout', category: '☢', maxCooldown: 6, maxUses: 1, price: 100000, description: 'Reveal 10 random enemy squares.' },
-  ghostFleet: { label: 'Ghost Fleet', category: '☢', maxCooldown: 8, maxUses: 1, price: 150000, description: 'Reveal 12 random enemy squares and evade fire.' },
-  finalSalvo: { label: 'Final Salvo', category: '☢', maxCooldown: 5, maxUses: 3, price: 200000, description: 'Fire a devastating salvo across a complete random row.' },
-  nuclearStrike: { label: 'Nuclear Strike', category: '☢', maxCooldown: 8, maxUses: 2, price: 300000, description: 'Reveal 5 enemy ship tiles instantly.' },
+  airstrike: { label: "Heaven's Wrath", category: 'Offensive', maxCooldown: 15, maxUses: 3, price: 750, description: 'Bomb 3 random enemy squares.' },
+  missileBarrage: { label: 'Hellfall', category: 'Offensive', maxCooldown: 5, maxUses: 1, price: 1000, description: 'Launch 7 missiles at random squares.' },
+  piercingShot: { label: 'Voidpiercer', category: 'Offensive', maxCooldown: 12, maxUses: 0, price: 850, description: 'Fire through 5 consecutive squares in a straight line.' },
+  crossfire: { label: 'Divine Crosshair', category: 'Offensive', maxCooldown: 15, maxUses: 1, price: 1200, description: 'Strike cross patterns at once.' },
+  scatterShot: { label: 'Thousand-Fold', category: 'Offensive', maxCooldown: 9, maxUses: 1, price: 900, description: 'Scatter 8 shots across enemy waters.' },
+  torpedo: { label: 'Abyssal Spear', category: 'Offensive', maxCooldown: 10, maxUses: 1, price: 1500, description: 'Torpedo a complete random row or column.' },
+  radarScan: { label: 'Nullsignal', category: 'Recon', maxCooldown: 2, maxUses: 3, price: 400, description: 'Reveal 3 hidden ship squares.' },
+  sonarPulse: { label: 'Abyssal Echo', category: 'Recon', maxCooldown: 6, maxUses: 1, price: 650, description: 'Scan a 3x3 ring around a random target area.' },
+  spyPlane: { label: 'Celestial Eye', category: 'Recon', maxCooldown: 10, maxUses: 4, price: 900, description: 'Reveal a hidden ship square and nearby water squares.' },
+  heatMap: { label: 'Thermal Dominion', category: 'Recon', maxCooldown: 5, maxUses: 1, price: 750, description: 'Scan a 3x3 area of waters.' },
+  shipTracker: { label: 'Prey Acquired', category: 'Recon', maxCooldown: 5, maxUses: 1, price: 1000, description: 'Track and sink a remaining 3-tile ship.' },
+  smokeScreen: { label: 'Phantom Veil', category: 'Defense', maxCooldown: 4, maxUses: 1, price: 600, description: 'Hide your fleet and skip the enemy turn.' },
+  decoyShip: { label: 'False Admiral', category: 'Defense', maxCooldown: 4, maxUses: 2, price: 1100, description: 'Deploy a decoy that absorbs the next enemy shot.' },
+  armorPlating: { label: 'Titanforge', category: 'Defense', maxCooldown: 5, maxUses: 3, price: 1300, description: 'Protect your fleet from the next enemy hit.' },
+  emergencyRepair: { label: 'Second Ascension', category: 'Defense', maxCooldown: 5, maxUses: 1, price: 1200, description: 'Repair one damaged ship tile and skip the enemy turn.' },
+  minefield: { label: 'Gravewater', category: 'Defense', maxCooldown: 7, maxUses: 2, price: 1500, description: 'Seed 5 mines across random enemy waters.' },
+  shieldGenerator: { label: 'Aegis Prime', category: 'Defense', maxCooldown: 5, maxUses: 5, price: 1800, description: 'Block the next two enemy shots.' },
+  tacticalSwap: { label: 'Chronological Annihilation', category: '☢', maxCooldown: 5, maxUses: 3, price: 40000, description: 'Reveal two random areas and evade the enemy turn.' },
+  counterattack: { label: 'Wrath Unbound', category: '☢', maxCooldown: 6, maxUses: 1, price: 35000, description: 'Strike 3 enemy squares and retaliate if hit.' },
+  blackout: { label: 'Event Horizon', category: '☢', maxCooldown: 6, maxUses: 1, price: 100000, description: 'Reveal 10 random squares.' },
+  ghostFleet: { label: 'Legion of the Lost', category: '☢', maxCooldown: 8, maxUses: 1, price: 150000, description: 'Reveal 12 random enemy squares and evade fire.' },
+  finalSalvo: { label: 'Last Judgement', category: '☢', maxCooldown: 5, maxUses: 3, price: 200000, description: 'Fire a devastating salvo across a complete random row.' },
+  nuclearStrike: { label: 'Cataclysm Protocol', category: '☢', maxCooldown: 8, maxUses: 2, price: 300000, description: 'Reveal 5 enemy ship tiles instantly.' },
 }
 
 const ABILITY_CATEGORIES = ['Offensive', 'Recon', 'Defense', '☢']
@@ -88,6 +89,7 @@ const THEME_PRESETS = {
     text: '#000000',
     muted: '#5b3b4d',
     accent: '#f5aeed',
+    placementShip: '#c026d3',
   },
   red: {
     label: 'Red',
@@ -98,6 +100,7 @@ const THEME_PRESETS = {
     text: '#000000',
     muted: '#5f3a3f',
     accent: '#f2a5af',
+    placementShip: '#dc2626',
   },
   blue: {
     label: 'Blue',
@@ -108,6 +111,7 @@ const THEME_PRESETS = {
     text: '#000000',
     muted: '#3e5567',
     accent: '#b2d5ed',
+    placementShip: '#2563eb',
   },
   black: {
     label: 'Black',
@@ -118,6 +122,7 @@ const THEME_PRESETS = {
     text: '#f3fabb',
     muted: '#d3bbfa',
     accent: '#ffffff',
+    placementShip: '#facc15',
   },
   green: {
     label: 'Green',
@@ -128,6 +133,7 @@ const THEME_PRESETS = {
     text: '#000000',
     muted: '#4a5f46',
     accent: '#c5fabb',
+    placementShip: '#16a34a',
   },
   orange: {
     label: 'Orange',
@@ -138,6 +144,7 @@ const THEME_PRESETS = {
     text: '#000000',
     muted: '#6b4e34',
     accent: '#fadcbb',
+    placementShip: '#ea580c',
   },
   purple: {
     label: 'Purple',
@@ -148,6 +155,7 @@ const THEME_PRESETS = {
     text: '#000000',
     muted: '#5b4272',
     accent: '#d3bbfa',
+    placementShip: '#7c3aed',
   },
   yellow: {
     label: 'Yellow',
@@ -158,6 +166,7 @@ const THEME_PRESETS = {
     text: '#000000',
     muted: '#6a6a3f',
     accent: '#f3fabb',
+    placementShip: '#ca8a04',
   },
 }
 
@@ -282,6 +291,29 @@ function chooseEnemyShot(playerBoard, difficulty) {
   return availableShots[Math.floor(Math.random() * availableShots.length)]
 }
 
+function chooseEnemyMove(playerBoard, difficulty) {
+  const abilityRoll = Math.random()
+  const ability = difficulty === 'master' && abilityRoll < 0.55
+    ? { name: 'Tactical Barrage', shots: 3 }
+    : difficulty === 'medium' && abilityRoll < 0.25
+      ? { name: 'Scout Burst', shots: 2 }
+      : null
+  const moves = []
+  const boardAfterMoves = playerBoard.map((row) => [...row])
+
+  for (let shotIndex = 0; shotIndex < (ability?.shots || 1); shotIndex += 1) {
+    const move = chooseEnemyShot(boardAfterMoves, difficulty)
+    if (!move) {
+      break
+    }
+
+    moves.push(move)
+    boardAfterMoves[move[0]][move[1]] = 'miss'
+  }
+
+  return { ability, moves }
+}
+
 function canPlaceShip(board, row, col, size, horizontal) {
   if (row < 0 || col < 0) {
     return false
@@ -325,6 +357,8 @@ function createGameState(difficulty = 'medium', playerLayout = null, enemyLayout
     playerBoard: playerFleet.board.map((row) => [...row]),
     enemyBoard: createEmptyBoard(),
     difficulty,
+    playerTurn: true,
+    roundStartedAt: Date.now(),
     status: `Level: ${DIFFICULTY_OPTIONS[difficulty].label}. Your turn. Choose a square on the enemy grid.`,
     winner: null,
   }
@@ -475,6 +509,7 @@ function App() {
   const [multiplayerType, setMultiplayerType] = useState('random')
   const [roomState, setRoomState] = useState(null)
   const [multiplayerGame, setMultiplayerGame] = useState(null)
+  const [roundTimeLeft, setRoundTimeLeft] = useState(ROUND_DURATION_SECONDS)
   const [game, setGame] = useState(() => createGameState('medium'))
   const [placementBoard, setPlacementBoard] = useState(createEmptyBoard())
   const [placementIndex, setPlacementIndex] = useState(0)
@@ -544,6 +579,7 @@ function App() {
   const enemyBoardRef = useRef(null)
   const playerBoardRef = useRef(null)
   const statusRef = useRef(null)
+  const multiplayerRoundRef = useRef(null)
 
   const enemyHits = game.enemyBoard.flat().filter((cell) => cell === 'hit').length
   const playerHits = game.playerBoard.flat().filter((cell) => cell === 'hit').length
@@ -728,7 +764,7 @@ function App() {
       return undefined
     }
 
-    const targetCell = document.querySelector(`[data-hit-coord="${hoveredEnemyTarget[0]}-${hoveredEnemyTarget[1]}"]`)
+    const targetCell = enemyBoardRef.current?.querySelector(`[data-hit-coord="${hoveredEnemyTarget[0]}-${hoveredEnemyTarget[1]}"]`)
     if (!targetCell) {
       return undefined
     }
@@ -914,6 +950,8 @@ function App() {
       ...current,
       enemyBoard: nextEnemyBoard,
       playerBoard: options.nextPlayerBoard || current.playerBoard,
+      playerTurn: false,
+      roundStartedAt: Date.now(),
       winner,
       status: winner ? 'You sank the enemy fleet. Victory!' : statusMessage,
     }))
@@ -928,6 +966,11 @@ function App() {
 
     if (options.skipEnemyTurn) {
       decrementCooldowns()
+      setGame((current) => ({
+        ...current,
+        playerTurn: true,
+        roundStartedAt: Date.now(),
+      }))
       return
     }
 
@@ -937,13 +980,16 @@ function App() {
         decrementCooldowns()
         setGame((current) => ({
           ...current,
+          playerTurn: true,
+          roundStartedAt: Date.now(),
           status: 'Your defense absorbed the enemy attack.',
         }))
         return
       }
 
       setGame((current) => {
-        const [enemyRow, enemyCol] = chooseEnemyShot(current.playerBoard, current.difficulty) || []
+        const enemyMove = chooseEnemyMove(current.playerBoard, current.difficulty)
+        const [enemyRow, enemyCol] = enemyMove.moves[0] || []
 
         if (enemyRow === undefined || enemyCol === undefined) {
           decrementCooldowns()
@@ -955,11 +1001,18 @@ function App() {
         }
 
         const nextPlayerBoard = current.playerBoard.map((boardRow) => [...boardRow])
-        const enemyHit = current.playerLayout[enemyRow][enemyCol] === 'ship'
+        let enemyHit = false
+        let lastMove = null
 
-        nextPlayerBoard[enemyRow][enemyCol] = enemyHit ? 'hit' : 'miss'
-        const enemyHitId = `${enemyRow}-${enemyCol}-${Date.now()}`
-        setRecentHit({ row: enemyRow, col: enemyCol, board: 'player', type: enemyHit ? 'hit' : 'miss', id: enemyHitId })
+        enemyMove.moves.forEach(([moveRow, moveCol]) => {
+          const moveHit = current.playerLayout[moveRow][moveCol] === 'ship'
+          nextPlayerBoard[moveRow][moveCol] = moveHit ? 'hit' : 'miss'
+          enemyHit = enemyHit || moveHit
+          lastMove = { row: moveRow, col: moveCol, type: moveHit ? 'hit' : 'miss' }
+        })
+
+        const enemyHitId = `${lastMove.row}-${lastMove.col}-${Date.now()}`
+        setRecentHit({ ...lastMove, board: 'player', id: enemyHitId })
         window.setTimeout(() => {
           setRecentHit((current) => (current?.id === enemyHitId ? null : current))
         }, 900)
@@ -969,9 +1022,13 @@ function App() {
         return {
           ...current,
           playerBoard: nextPlayerBoard,
+          playerTurn: !enemyWinner,
+          roundStartedAt: Date.now(),
           winner: enemyWinner || current.winner,
           status: enemyWinner
             ? 'The enemy sank your fleet. Try a fresh match.'
+            : enemyMove.ability
+              ? `${enemyMove.ability.name}: ${enemyHit ? 'The barrage found a hit.' : 'The barrage missed your fleet.'}`
             : enemyHit
               ? 'The enemy scored a hit on your fleet.'
               : 'The enemy missed your ships.',
@@ -989,7 +1046,7 @@ function App() {
       return
     }
 
-    if (game.winner || game.enemyBoard[row][col] === 'hit' || game.enemyBoard[row][col] === 'miss') {
+    if (!game.playerTurn || game.winner || game.enemyBoard[row][col] === 'hit' || game.enemyBoard[row][col] === 'miss') {
       return
     }
 
@@ -1105,6 +1162,7 @@ function App() {
     const config = ABILITY_CONFIGS[type]
     if (
       gameMode !== 'single' || placementActive || game.winner ||
+      !game.playerTurn ||
       abilityCooldowns[type] > 0 || abilityUses[type] <= 0 ||
       (!usedAbilityTypes.includes(type) && usedAbilityTypes.length >= 3)
     ) {
@@ -1482,6 +1540,57 @@ function App() {
     }
   }
 
+  useEffect(() => {
+    if (currentView !== 'game' || placementActive || gameMode !== 'single' || !game.playerTurn || game.winner) {
+      return undefined
+    }
+
+    const updateRoundTimer = () => {
+      const elapsedSeconds = Math.floor((Date.now() - (game.roundStartedAt || Date.now())) / 1000)
+      const nextTimeLeft = Math.max(0, ROUND_DURATION_SECONDS - elapsedSeconds)
+      setRoundTimeLeft(nextTimeLeft)
+
+      if (nextTimeLeft === 0) {
+        finalizePlayerMove(game.enemyBoard, 'Time expired. The enemy takes the next move.')
+      }
+    }
+
+    updateRoundTimer()
+    const timer = window.setInterval(updateRoundTimer, 250)
+    return () => window.clearInterval(timer)
+  }, [currentView, placementActive, gameMode, game.playerTurn, game.winner, game.roundStartedAt])
+
+  useEffect(() => {
+    if (currentView !== 'game' || placementActive || gameMode !== 'multiplayer' || !multiplayerGame || multiplayerGame.winner) {
+      return undefined
+    }
+
+    const syncRound = () => {
+      const elapsedSeconds = Math.floor((Date.now() - (multiplayerGame.roundStartedAt || Date.now())) / 1000)
+      setRoundTimeLeft(Math.max(0, ROUND_DURATION_SECONDS - elapsedSeconds))
+
+      const playerId = currentUser?.email || currentUser?.username || 'guest'
+      if (multiplayerGame.turnPlayerId !== playerId || elapsedSeconds < ROUND_DURATION_SECONDS) {
+        return
+      }
+
+      const nextRoom = expireMultiplayerRound(multiplayerGame)
+      if (nextRoom === multiplayerGame || multiplayerRoundRef.current === multiplayerGame.roundStartedAt) {
+        return
+      }
+
+      multiplayerRoundRef.current = multiplayerGame.roundStartedAt
+      setMultiplayerGame(nextRoom)
+      const store = readRoomStore(window.localStorage, ROOM_STORAGE_KEY)
+      store[normalizeRoomCode(nextRoom.code)] = { ...roomState, game: nextRoom }
+      writeRoomStore(window.localStorage, store, ROOM_STORAGE_KEY)
+    }
+
+    syncRound()
+    const timer = window.setInterval(syncRound, 250)
+    return () => window.clearInterval(timer)
+  }, [currentView, placementActive, gameMode, multiplayerGame, currentUser, roomState])
+
   const roomCode = activeRoomCode || (currentUser?.username
     ? `${currentUser.username.toLowerCase().replace(/\s+/g, '-')}-${Math.max(100, (currentUser.username.length + wins) % 900 + 100)}`
     : 'guest-room-101')
@@ -1495,6 +1604,7 @@ function App() {
     '--text-primary': activeTheme.text,
     '--text-secondary': activeTheme.muted,
     '--accent': activeTheme.accent,
+    '--placement-ship': activeTheme.placementShip,
   }
 
   const renderPreferencesBar = () => {
@@ -1768,6 +1878,10 @@ function App() {
             <span>Status</span>
             <strong>{game.winner === 'player' ? 'Victory' : game.winner === 'enemy' ? 'Defeat' : game.winner === 'draw' ? 'Draw' : 'Live fire'}</strong>
           </article>
+          <article className={`stat-card timer-card ${roundTimeLeft <= 5 ? 'timer-warning' : ''}`}>
+            <span>Round time</span>
+            <strong>0:{String(roundTimeLeft).padStart(2, '0')}</strong>
+          </article>
         </section>
 
         {showLeaderboard && (
@@ -1885,7 +1999,14 @@ function App() {
                   Switch to {placementOrientation === 'horizontal' ? 'vertical' : 'horizontal'}
                 </button>
               </div>
-              <div className="board placement-board" aria-label="Fleet placement grid">
+              <div
+                className="board placement-board"
+                aria-label="Fleet placement grid"
+                onContextMenu={(event) => {
+                  event.preventDefault()
+                  setPlacementOrientation((value) => (value === 'horizontal' ? 'vertical' : 'horizontal'))
+                }}
+              >
                 {placementBoard.map((row, rowIndex) =>
                   row.map((cell, colIndex) => {
                     const isHovered = hoveredPlacement?.some(([hoverRow, hoverCol]) => hoverRow === rowIndex && hoverCol === colIndex)
@@ -1924,10 +2045,10 @@ function App() {
             <>
               <article className="board-card">
                 <div className="board-heading">
-                  <h2>Your fleet</h2>
+                  <h2 className={multiplayerGame.turnPlayerId !== (currentUser?.email || currentUser?.username || 'guest') ? 'turn-heading active' : 'turn-heading'}>Your fleet</h2>
                   <p>Watch your own waters and your damage report.</p>
                 </div>
-                <div className="board" aria-label="Your fleet grid">
+                <div className="board player-board" aria-label="Your fleet grid">
                   {(() => {
                     const playerState = getMultiplayerPlayerState(multiplayerGame, currentUser?.email || currentUser?.username || 'guest')
                     return (playerState?.playerBoard || []).map((row, rowIndex) =>
@@ -1945,8 +2066,8 @@ function App() {
 
               <article className="board-card">
                 <div className="board-heading">
-                  <h2>Enemy waters</h2>
-                  <p>{multiplayerGame.turnPlayerId === (currentUser?.email || currentUser?.username || 'guest') ? 'Your turn to fire.' : 'Waiting for the opponent to move.'}</p>
+                  <h2 className={multiplayerGame.turnPlayerId === (currentUser?.email || currentUser?.username || 'guest') ? 'turn-heading active' : 'turn-heading'}>Enemy waters</h2>
+                  <p>{multiplayerGame.turnPlayerId === (currentUser?.email || currentUser?.username || 'guest') ? `Your round. Choose one move in 0:${String(roundTimeLeft).padStart(2, '0')}.` : 'Waiting for the opponent to complete their round.'}</p>
                 </div>
                 <div className="board" aria-label="Enemy waters grid">
                   {(() => {
@@ -1975,7 +2096,7 @@ function App() {
             <>
               <article className="board-card">
                 <div className="board-heading">
-                  <h2>Your fleet</h2>
+                  <h2 className={`turn-heading ${game.playerTurn ? 'active' : ''}`}>Your fleet</h2>
                   <p>Watch your own waters and your damage report.</p>
                 </div>
                 <div ref={playerBoardRef} className="board player-board" aria-label="Your fleet grid">
@@ -2004,8 +2125,8 @@ function App() {
 
               <article className="board-card">
                 <div className="board-heading">
-                  <h2>Enemy waters</h2>
-                  <p>{targetingAbility ? `Click to target ${ABILITY_CONFIGS[targetingAbility].label.toLowerCase()}` : 'Click a square to fire. Hidden ships are placed at random.'}</p>
+                  <h2 className={`turn-heading ${game.playerTurn ? '' : 'active'}`}>Enemy waters</h2>
+                  <p>{targetingAbility ? `Click to target ${ABILITY_CONFIGS[targetingAbility].label.toLowerCase()}` : game.playerTurn ? `Choose one move in 0:${String(roundTimeLeft).padStart(2, '0')}.` : 'The enemy is taking its move.'}</p>
                 </div>
                 <div ref={enemyBoardRef} className={`board enemy-board ${targetingAbility ? 'targeting-mode' : ''}`} aria-label="Enemy waters grid">
                   {game.enemyBoard.map((row, rowIndex) =>
@@ -2024,7 +2145,7 @@ function App() {
                           onMouseLeave={() => setHoveredEnemyTarget(null)}
                           onFocus={() => setHoveredEnemyTarget([rowIndex, colIndex])}
                           onBlur={() => setHoveredEnemyTarget(null)}
-                          disabled={Boolean(game.winner) || (isShot && !targetingAbility)}
+                          disabled={Boolean(game.winner) || !game.playerTurn || (isShot && !targetingAbility)}
                           aria-label={`Fire at row ${rowIndex + 1}, column ${colIndex + 1}`}
                         >
                           {isRecentHit ? (

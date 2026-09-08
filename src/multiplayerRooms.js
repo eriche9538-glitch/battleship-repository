@@ -1,5 +1,6 @@
 const GRID_SIZE = 10
 const SHIP_SIZES = [5, 4, 3, 3, 2]
+export const ROUND_DURATION_MS = 30_000
 
 function createEmptyBoard() {
   return Array.from({ length: GRID_SIZE }, () => Array(GRID_SIZE).fill('water'))
@@ -164,7 +165,29 @@ export function createMultiplayerMatchState(roomCode, players) {
     players: normalizedPlayers,
     status: 'playing',
     turnPlayerId: normalizedPlayers[0]?.id || null,
+    roundStartedAt: Date.now(),
     winner: null,
+  }
+}
+
+export function expireMultiplayerRound(room, now = Date.now()) {
+  if (!room?.players || room.status !== 'playing' || !room.turnPlayerId) {
+    return room
+  }
+
+  if (!room.roundStartedAt || now - room.roundStartedAt < ROUND_DURATION_MS) {
+    return room
+  }
+
+  const nextPlayer = room.players.find((player) => player.id !== room.turnPlayerId)
+  if (!nextPlayer) {
+    return room
+  }
+
+  return {
+    ...room,
+    turnPlayerId: nextPlayer.id,
+    roundStartedAt: now,
   }
 }
 
@@ -224,6 +247,7 @@ export function applyMultiplayerAttack(room, playerId, row, col) {
     ...room,
     players: nextPlayers,
     turnPlayerId: winner ? room.turnPlayerId : nextTurnPlayerId,
+    roundStartedAt: winner ? room.roundStartedAt : Date.now(),
     winner,
     status: winner ? 'finished' : 'playing',
   }

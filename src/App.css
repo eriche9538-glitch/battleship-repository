@@ -526,6 +526,29 @@
   color: var(--text-primary, #eff6ff);
 }
 
+.board-heading h2.turn-heading {
+  width: fit-content;
+  padding: 3px 9px;
+  border-radius: 8px;
+  transition: color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.board-heading h2.turn-heading.active {
+  color: var(--text-primary, #eff6ff);
+  background: color-mix(in srgb, var(--accent, #38bdf8) 24%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent, #38bdf8) 58%, transparent), 0 0 22px color-mix(in srgb, var(--accent, #38bdf8) 30%, transparent);
+  animation: turn-heading-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes turn-heading-pulse {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(3px);
+  }
+}
+
 .board-heading p {
   color: var(--text-secondary, #cbd5e1);
   font-size: 0.95rem;
@@ -653,7 +676,9 @@
 }
 
 .placement-board .cell.ship {
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 0 0 1px var(--accent, rgba(125, 211, 252, 0.24)), 0 6px 16px var(--accent, rgba(37, 99, 235, 0.28));
+  background: linear-gradient(145deg, color-mix(in srgb, var(--placement-ship, #2563eb) 72%, #111827), var(--placement-ship, #2563eb));
+  border-color: color-mix(in srgb, var(--placement-ship, #2563eb) 72%, #ffffff);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 0 0 1px color-mix(in srgb, var(--placement-ship, #2563eb) 72%, transparent), 0 6px 16px color-mix(in srgb, var(--placement-ship, #2563eb) 42%, transparent);
 }
 
 .placement-preview {
@@ -672,6 +697,12 @@
   background: linear-gradient(145deg, #991b1b, #ef4444);
   border-color: #f87171;
   box-shadow: inset 0 0 0 2px rgba(248, 113, 113, 0.5);
+}
+
+.player-board .cell.miss {
+  background: linear-gradient(145deg, #581c87, #a855f7);
+  border-color: #c084fc;
+  box-shadow: inset 0 0 0 2px rgba(216, 180, 254, 0.35), 0 0 10px rgba(168, 85, 247, 0.28);
 }
 
 .enemy-board .cell.hit {
@@ -729,7 +760,6 @@
     box-shadow: 0 0 0 10px rgba(251, 191, 36, 0);
   }
 }
-}
 
 .enemy-cell:disabled {
   cursor: not-allowed;
@@ -767,6 +797,14 @@
 
 .enemy-board {
   transition: transform 0.25s ease;
+}
+
+.timer-card strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.timer-card.timer-warning strong {
+  color: #f97316;
 }
 
 .home-panel {

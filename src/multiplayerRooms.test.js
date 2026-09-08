@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { joinRoomState, normalizeRoomCode, getOpponentName, joinRandomMatch } from './multiplayerRooms.js'
+import { createMultiplayerMatchState, expireMultiplayerRound, joinRoomState, normalizeRoomCode, getOpponentName, joinRandomMatch, ROUND_DURATION_MS } from './multiplayerRooms.js'
 
 test('joinRoomState marks the room as matched when two players join', () => {
   const first = joinRoomState(null, { id: 'p1', name: 'Alice' })
@@ -31,4 +31,18 @@ test('joinRandomMatch pairs a waiting player with the next joiner', () => {
   assert.equal(first.roomState, null)
   assert.equal(second.roomState.status, 'matched')
   assert.equal(second.roomState.players.length, 2)
+})
+
+test('expireMultiplayerRound passes the turn after 30 seconds', () => {
+  const room = createMultiplayerMatchState('room', [{ id: 'p1', name: 'Alice' }, { id: 'p2', name: 'Bob' }])
+  const expiredRoom = expireMultiplayerRound(room, room.roundStartedAt + ROUND_DURATION_MS)
+
+  assert.equal(expiredRoom.turnPlayerId, 'p2')
+  assert.equal(expiredRoom.roundStartedAt, room.roundStartedAt + ROUND_DURATION_MS)
+})
+
+test('expireMultiplayerRound leaves an active round unchanged', () => {
+  const room = createMultiplayerMatchState('room', [{ id: 'p1', name: 'Alice' }, { id: 'p2', name: 'Bob' }])
+
+  assert.strictEqual(expireMultiplayerRound(room, room.roundStartedAt + ROUND_DURATION_MS - 1), room)
 })
