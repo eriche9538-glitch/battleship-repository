@@ -7,7 +7,7 @@ export async function onRequestPost(context: { request: Request; env: Env }): Pr
 
   try {
     const body: any = await request.json().catch(() => null);
-    const { userId, currencyDelta = 0 } = body || {};
+    const { userId, currencyDelta = 0, eloDelta = 0, eloMode = 'normal' } = body || {};
 
     if (!userId) {
       return jsonResponse(400, { error: 'Missing userId' });
@@ -23,9 +23,16 @@ export async function onRequestPost(context: { request: Request; env: Env }): Pr
       return jsonResponse(400, { error: 'Invalid currencyDelta' });
     }
 
+    const parsedEloDelta = Number(eloDelta);
+    if (!Number.isFinite(parsedEloDelta) || !['normal', 'blitz'].includes(eloMode)) {
+      return jsonResponse(400, { error: 'Invalid ELO update' });
+    }
+
+    const eloColumn = eloMode === 'blitz' ? 'blitz_elo' : 'normal_elo';
+
     await db
-      .prepare('UPDATE Users SET score = score + 1, battle_currency = MAX(0, COALESCE(battle_currency, 0) + ?2) WHERE id = ?1')
-      .bind(userId, parsedCurrencyDelta)
+      .prepare(`UPDATE Users SET score = score + 1, ${eloColumn} = ${eloColumn} + ?2, battle_currency = MAX(0, COALESCE(battle_currency, 0) + ?3) WHERE id = ?1`)
+      .bind(userId, parsedEloDelta, parsedCurrencyDelta)
       .run();
 
     return jsonResponse(200, { success: true });

@@ -363,6 +363,28 @@
   color: #f0abfc;
 }
 
+.currency-win-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: -4px 0 18px;
+  padding: 14px 16px;
+  border: 1px solid #fbbf24;
+  border-radius: 14px;
+  background: linear-gradient(110deg, rgba(120, 53, 15, 0.9), rgba(22, 101, 52, 0.82));
+  color: #fef3c7;
+}
+
+.currency-win-notice strong {
+  color: #fde68a;
+}
+
+.currency-win-notice span {
+  color: #dcfce7;
+  font-size: 0.9rem;
+}
+
 .leaderboard-overlay {
   position: fixed;
   inset: 0;
@@ -388,7 +410,7 @@
 }
 
 .ability-shop-card {
-  width: min(100%, 720px);
+  width: min(100%, 1040px);
 }
 
 .shop-balance {
@@ -408,6 +430,124 @@
 
 .shop-loadout strong {
   color: var(--text-primary, #eff6ff);
+}
+
+.shop-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  align-items: start;
+  gap: 18px;
+}
+
+.equipped-abilities {
+  position: sticky;
+  top: 0;
+  padding: 14px;
+  border: 1px solid var(--panel-border, rgba(255, 255, 255, 0.12));
+  border-radius: 16px;
+  background: var(--surface-background, rgba(255, 255, 255, 0.06));
+}
+
+.equipped-abilities-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.equipped-abilities-heading h3 {
+  margin: 0;
+  color: var(--accent, #7dd3fc);
+  font-size: 0.95rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.equipped-abilities-heading span {
+  color: var(--text-secondary, #cbd5e1);
+  font-size: 0.8rem;
+}
+
+.equipped-search {
+  width: 100%;
+  margin-bottom: 10px;
+  padding: 9px 10px;
+  border: 1px solid var(--panel-border, rgba(255, 255, 255, 0.16));
+  border-radius: 10px;
+  background: var(--panel-background, rgba(15, 23, 42, 0.72));
+  color: var(--text-primary, #eff6ff);
+  font: inherit;
+  font-size: 0.85rem;
+}
+
+.equipped-search::placeholder {
+  color: var(--text-secondary, #cbd5e1);
+}
+
+.equipped-search:focus {
+  outline: 2px solid var(--accent, #7dd3fc);
+  outline-offset: 1px;
+}
+
+.equipped-abilities-list {
+  display: grid;
+  gap: 8px;
+}
+
+.equipped-ability-card {
+  position: relative;
+  min-height: 58px;
+  padding: 12px 32px 10px 10px;
+  border: 1px solid var(--accent, #7dd3fc);
+  border-radius: 12px;
+  background: linear-gradient(145deg, var(--panel-background, rgba(15, 23, 42, 0.9)), var(--surface-background, rgba(15, 23, 42, 0.72)));
+}
+
+.equipped-ability-card strong,
+.equipped-ability-card small {
+  display: block;
+}
+
+.equipped-ability-card strong {
+  color: var(--text-primary, #eff6ff);
+  font-size: 0.9rem;
+}
+
+.equipped-ability-card small {
+  margin-top: 4px;
+  color: var(--text-secondary, #cbd5e1);
+  font-size: 0.75rem;
+}
+
+.equipped-remove {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(248, 113, 113, 0.18);
+  color: #fecaca;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.equipped-remove:hover,
+.equipped-remove:focus-visible {
+  background: #ef4444;
+  color: #fff;
+}
+
+.equipped-empty {
+  margin: 0;
+  color: var(--text-secondary, #cbd5e1);
+  font-size: 0.85rem;
 }
 
 .shop-list {
@@ -746,6 +886,17 @@
   border-color: rgba(251, 191, 36, 0.4);
 }
 
+.cell.leviathan-target {
+  background: linear-gradient(145deg, #7f1d1d, #dc2626) !important;
+  border-color: #f97316 !important;
+  box-shadow: inset 0 0 0 2px rgba(254, 215, 170, 0.35), 0 0 12px rgba(239, 68, 68, 0.45) !important;
+}
+
+.cell.leviathan-target:hover:not(:disabled) {
+  background: linear-gradient(145deg, #991b1b, #f97316) !important;
+  transform: translateY(-1px) scale(1.04);
+}
+
 .ability-button.targeting {
   background: linear-gradient(145deg, #fbbf24, #f59e0b) !important;
   border-color: #fbbf24 !important;
@@ -928,6 +1079,15 @@
 }
 
 @media (max-width: 760px) {
+  .shop-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .equipped-abilities {
+    position: static;
+    order: -1;
+  }
+
   .difficulty-pill {
     width: 100%;
   }

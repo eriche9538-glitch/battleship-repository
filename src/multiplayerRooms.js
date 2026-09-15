@@ -261,7 +261,7 @@ export function applyMultiplayerAttack(room, playerId, row, col) {
   }
 }
 
-export function applyMultiplayerAbility(room, playerId, type, targetRow = null, targetCol = null) {
+export function applyMultiplayerAbility(room, playerId, type, targetRow = null, targetCol = null, orientation = 'horizontal') {
   if (!room?.players || room.status !== 'playing') {
     return room
   }
@@ -292,6 +292,17 @@ export function applyMultiplayerAbility(room, playerId, type, targetRow = null, 
   if (type === 'sonarPulse') coords = getCrossPattern(row, col).concat([[row - 1, col - 1], [row - 1, col + 1], [row + 1, col - 1], [row + 1, col + 1]])
   if (type === 'heatMap') coords = Array.from({ length: 9 }, (_, index) => [row + Math.floor(index / 3) - 1, col + (index % 3) - 1])
   if (type === 'torpedo' || type === 'finalSalvo') coords = Array.from({ length: GRID_SIZE }, (_, index) => [row, index])
+  if (type === 'leviathansVerdict') {
+    if (orientation === 'vertical') {
+      const startCol = col < GRID_SIZE / 2 ? 0 : GRID_SIZE / 2
+      coords = Array.from({ length: GRID_SIZE / 2 }, (_, offset) => startCol + offset)
+        .flatMap((targetCol) => Array.from({ length: GRID_SIZE }, (_, targetRow) => [targetRow, targetCol]))
+    } else {
+      const startRow = row < GRID_SIZE / 2 ? 0 : GRID_SIZE / 2
+      coords = Array.from({ length: GRID_SIZE / 2 }, (_, offset) => startRow + offset)
+        .flatMap((targetRow) => Array.from({ length: GRID_SIZE }, (_, targetCol) => [targetRow, targetCol]))
+    }
+  }
   if (type === 'spyPlane') coords = getCrossPattern(row, col)
   if (type === 'nuclearStrike') coords = opponentPlayer.playerLayout.flatMap((boardRow, targetRow) => boardRow
     .map((cell, targetCol) => cell === 'ship' ? [targetRow, targetCol] : null)

@@ -15,9 +15,9 @@ export async function onRequestGet(context: { request: Request; env: Env }): Pro
     }
 
     const user = await context.env.DB
-      .prepare('SELECT id, username, email, score, COALESCE(battle_currency, 0) AS battle_currency FROM Users WHERE id = ?1 LIMIT 1')
+      .prepare('SELECT id, username, email, score, COALESCE(battle_currency, 0) AS battle_currency, COALESCE(normal_elo, 0) AS normal_elo, COALESCE(blitz_elo, 0) AS blitz_elo FROM Users WHERE id = ?1 LIMIT 1')
       .bind(userId)
-      .first<{ id: number; username: string; email: string; score: number; battle_currency: number } | null>();
+      .first<{ id: number; username: string; email: string; score: number; battle_currency: number; normal_elo: number; blitz_elo: number } | null>();
 
     if (!user) {
       return jsonResponse(404, { error: 'User not found' });
@@ -31,6 +31,8 @@ export async function onRequestGet(context: { request: Request; env: Env }): Pro
         email: user.email,
         score: user.score ?? 0,
         battleCurrency: user.battle_currency ?? 0,
+        normalElo: user.normal_elo ?? 0,
+        blitzElo: user.blitz_elo ?? 0,
       },
     });
   } catch (error: any) {

@@ -8,6 +8,7 @@ import { incrementUserScore } from './scoreService'
 
 const GRID_SIZE = 10
 const ROUND_DURATION_SECONDS = 30
+const BLITZ_DURATION_SECONDS = 90
 const SHIP_SIZES = [5, 4, 3, 3, 2]
 const ACCOUNT_STORAGE_KEY = 'battleships-account'
 const ROOM_STORAGE_KEY = 'battleships-room-store'
@@ -16,9 +17,14 @@ const ABILITY_STOCK_STORAGE_KEY = 'battleships-ability-stock'
 const ABILITY_OWNERSHIP_STORAGE_KEY = 'battleships-ability-ownership'
 const ABILITY_LOADOUT_STORAGE_KEY = 'battleships-ability-loadout'
 const DIFFICULTY_OPTIONS = {
-  easy: { label: 'Easy', description: 'Random shots and a slower enemy.', delay: 320, reward: 25 },
-  medium: { label: 'Medium', description: 'Targets nearby hits more often.', delay: 430, reward: 100 },
-  master: { label: 'Master', description: 'Aggressive, hunt-and-target attacks.', delay: 550, reward: 1000 },
+  easy: { label: 'Easy', description: 'Random shots and a slower enemy.', delay: 320, reward: 25, elo: 10 },
+  medium: { label: 'Medium', description: 'Targets nearby hits more often.', delay: 430, reward: 100, elo: 50 },
+  master: { label: 'Master', description: 'Aggressive, hunt-and-target attacks.', delay: 550, reward: 1000, elo: 100 },
+}
+const SUB_GAME_MODES = {
+  normal: { label: 'Normal', description: 'Sink the enemy fleet to win.', eloMode: 'normal' },
+  anti: { label: 'Anti-Battleship', description: 'Sink the enemy fleet to lose. Protect your ships.', eloMode: 'normal' },
+  blitz: { label: 'Blitz', description: 'Finish the match before the 1:30 clock expires.', eloMode: 'blitz' },
 }
 
 const ABILITY_CONFIGS = {
@@ -69,6 +75,7 @@ const ABILITY_CONFIGS = {
   ghostFleet: { label: 'Legion of the Lost', category: '☢', maxCooldown: 8, maxUses: 1, price: 150000, description: 'Reveal 12 random enemy squares and evade fire.' },
   finalSalvo: { label: 'Last Judgement', category: '☢', maxCooldown: 5, maxUses: 3, price: 200000, description: 'Fire a devastating salvo across a complete random row.' },
   nuclearStrike: { label: 'Cataclysm Protocol', category: '☢', maxCooldown: 8, maxUses: 2, price: 300000, description: 'Reveal 5 enemy ship tiles instantly.' },
+  leviathansVerdict: { label: "Leviathan's Verdict", category: '☢', maxCooldown: 10, maxUses: 1, price: 10000000, description: 'Reveal and devastate one half of the enemy board. Right-click to rotate the strike.' },
 }
 
 const ABILITY_CATEGORIES = ['Offensive', 'Recon', 'Defense', '☢']
@@ -343,7 +350,7 @@ function placeShip(board, row, col, size, horizontal) {
   return nextBoard
 }
 
-function createGameState(difficulty = 'medium', playerLayout = null, enemyLayout = null) {
+function createGameState(difficulty = 'medium', playerLayout = null, enemyLayout = null, subGameMode = 'normal') {
   const playerFleet = playerLayout
     ? { board: playerLayout.map((row) => [...row]) }
     : createFleetBoard()
@@ -357,8 +364,10 @@ function createGameState(difficulty = 'medium', playerLayout = null, enemyLayout
     playerBoard: playerFleet.board.map((row) => [...row]),
     enemyBoard: createEmptyBoard(),
     difficulty,
+    subGameMode,
     playerTurn: true,
     roundStartedAt: Date.now(),
+    matchStartedAt: null,
     status: `Level: ${DIFFICULTY_OPTIONS[difficulty].label}. Your turn. Choose a square on the enemy grid.`,
     winner: null,
   }
@@ -397,6 +406,18 @@ function getRandomLinePattern(row, col) {
   }
 
   return coords.slice(0, 5)
+}
+
+function getLeviathansVerdictPattern(row, col, orientation) {
+  if (orientation === 'vertical') {
+    const startCol = col < GRID_SIZE / 2 ? 0 : GRID_SIZE / 2
+    return Array.from({ length: GRID_SIZE / 2 }, (_, offset) => startCol + offset)
+      .flatMap((targetCol) => Array.from({ length: GRID_SIZE }, (_, targetRow) => [targetRow, targetCol]))
+  }
+
+  const startRow = row < GRID_SIZE / 2 ? 0 : GRID_SIZE / 2
+  return Array.from({ length: GRID_SIZE / 2 }, (_, offset) => startRow + offset)
+    .flatMap((targetRow) => Array.from({ length: GRID_SIZE }, (_, targetCol) => [targetRow, targetCol]))
 }
 
 function NukeAnimation({ nuke, boardRef, onComplete }) {
@@ -503,6 +524,8 @@ function App() {
     return Number.isFinite(storedCurrency) ? storedCurrency : 0
   })
   const [difficulty, setDifficulty] = useState('medium')
+  const [subGameMode, setSubGameMode] = useState('normal')
+  const [matchTimeLeft, setMatchTimeLeft] = useState(null)
   const [gameMode, setGameMode] = useState('single')
   const [roomCodeInput, setRoomCodeInput] = useState('')
   const [activeRoomCode, setActiveRoomCode] = useState('')
@@ -517,9 +540,13 @@ function App() {
   const [placementActive, setPlacementActive] = useState(true)
   const [hoveredPlacement, setHoveredPlacement] = useState(null)
   const [score, setScore] = useState(0)
+  const [currencyNotice, setCurrencyNotice] = useState(null)
+  const [normalElo, setNormalElo] = useState(0)
+  const [blitzElo, setBlitzElo] = useState(0)
   const [recentAbility, setRecentAbility] = useState(null)
   const [nukeAnimation, setNukeAnimation] = useState(null)
   const [targetingAbility, setTargetingAbility] = useState(null)
+  const [leviathansOrientation, setLeviathansOrientation] = useState('horizontal')
   const [abilityCooldowns, setAbilityCooldowns] = useState(() => createAbilityMap(() => 0))
   const [abilityUses, setAbilityUses] = useState(() => createAbilityMap((config) => config.maxUses))
   const [abilityStock, setAbilityStock] = useState(() => {
@@ -563,9 +590,13 @@ function App() {
     }
   })
   const [usedAbilityTypes, setUsedAbilityTypes] = useState([])
+  const [equippedAbilitySearch, setEquippedAbilitySearch] = useState('')
   const [defenseCharges, setDefenseCharges] = useState(0)
   const [leaderboard, setLeaderboard] = useState([])
   const [yourLeaderboardEntry, setYourLeaderboardEntry] = useState(null)
+  const [eloLeaderboard, setEloLeaderboard] = useState([])
+  const [yourEloLeaderboardEntry, setYourEloLeaderboardEntry] = useState(null)
+  const [eloLeaderboardMode, setEloLeaderboardMode] = useState('normal-elo')
   const [currencyLeaderboard, setCurrencyLeaderboard] = useState([])
   const [yourCurrencyLeaderboardEntry, setYourCurrencyLeaderboardEntry] = useState(null)
   const [recentHit, setRecentHit] = useState(null)
@@ -581,6 +612,7 @@ function App() {
   const statusRef = useRef(null)
   const multiplayerRoundRef = useRef(null)
   const multiplayerCooldownRoundRef = useRef(null)
+  const awardedMatchRef = useRef(null)
 
   const enemyHits = game.enemyBoard.flat().filter((cell) => cell === 'hit').length
   const playerHits = game.playerBoard.flat().filter((cell) => cell === 'hit').length
@@ -621,6 +653,8 @@ function App() {
         if (Number.isFinite(payload.user?.score)) {
           setScore(payload.user.score)
         }
+        setNormalElo(payload.user?.normalElo ?? 0)
+        setBlitzElo(payload.user?.blitzElo ?? 0)
       } catch {
         // Keep the locally cached account values when the account request fails.
       }
@@ -641,6 +675,13 @@ function App() {
           setCurrencyLeaderboard(payload.entries || [])
           setYourCurrencyLeaderboardEntry(payload.yourEntry || null)
         }
+
+        const eloResponse = await fetch(`/api/leaderboard?userId=${currentUser.id}&mode=${eloLeaderboardMode}`)
+        if (eloResponse.ok) {
+          const payload = await eloResponse.json()
+          setEloLeaderboard(payload.entries || [])
+          setYourEloLeaderboardEntry(payload.yourEntry || null)
+        }
       } catch {
         // Ignore leaderboard fetch failures.
       }
@@ -650,7 +691,7 @@ function App() {
     loadLeaderboard()
 
     return undefined
-  }, [currentUser?.id])
+  }, [currentUser?.id, eloLeaderboardMode])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -681,9 +722,8 @@ function App() {
 
   useEffect(() => {
     const validLoadout = equippedAbilities.filter((type) => ABILITY_CONFIGS[type].maxUses > 0 || ownedAbilities[type])
-    if (validLoadout.length !== equippedAbilities.length || validLoadout.length < 3) {
-      const completedLoadout = [...validLoadout, ...STARTER_ABILITY_TYPES.filter((type) => !validLoadout.includes(type))].slice(0, 3)
-      setEquippedAbilities(completedLoadout)
+    if (validLoadout.length !== equippedAbilities.length) {
+      setEquippedAbilities(validLoadout)
     }
   }, [ownedAbilities, equippedAbilities])
 
@@ -835,7 +875,7 @@ function App() {
     return undefined
   }, [recentHit])
 
-  const persistWin = async (currencyReward) => {
+  const persistWin = async (currencyReward, eloDelta, eloMode) => {
     if (!currentUser?.id || typeof window === 'undefined') {
       return
     }
@@ -844,11 +884,16 @@ function App() {
       const response = await fetch('/api/score', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: currentUser.id, currencyDelta: currencyReward }),
+        body: JSON.stringify({ userId: currentUser.id, currencyDelta: currencyReward, eloDelta, eloMode }),
       })
 
       if (response.ok) {
         setScore((currentScore) => currentScore + 1)
+        if (eloMode === 'blitz') {
+          setBlitzElo((currentElo) => currentElo + eloDelta)
+        } else {
+          setNormalElo((currentElo) => currentElo + eloDelta)
+        }
         const leaderboardResponse = await fetch(`/api/leaderboard?userId=${currentUser.id}`)
         if (leaderboardResponse.ok) {
           const payload = await leaderboardResponse.json()
@@ -874,12 +919,32 @@ function App() {
     return reward
   }
 
+  useEffect(() => {
+    if (game.winner !== 'player' || awardedMatchRef.current === game.matchStartedAt) {
+      return undefined
+    }
+
+    awardedMatchRef.current = game.matchStartedAt
+    setWins((currentWins) => currentWins + 1)
+    const currencyReward = DIFFICULTY_OPTIONS[difficulty].reward
+    const eloReward = DIFFICULTY_OPTIONS[difficulty].elo
+    const eloMode = SUB_GAME_MODES[game.subGameMode]?.eloMode || 'normal'
+    setCurrencyNotice({
+      amount: currencyReward,
+      difficulty: DIFFICULTY_OPTIONS[difficulty].label,
+      mode: SUB_GAME_MODES[game.subGameMode]?.label || 'Normal',
+    })
+    awardBattleCurrency()
+    void persistWin(currencyReward, eloReward, eloMode)
+    return undefined
+  }, [game.winner, game.matchStartedAt, game.subGameMode, difficulty])
+
   const handleBuyAbility = (type) => {
     const config = ABILITY_CONFIGS[type]
     const price = config.price
     const isStarterAbility = config.maxUses > 0
     const currentCharges = abilityStock[type]
-    const maxCharges = config.maxUses
+    const maxCharges = config.maxUses > 0 ? config.maxUses : Number.POSITIVE_INFINITY
 
     // Check if already at max charges
     if (currentCharges >= maxCharges) {
@@ -897,6 +962,10 @@ function App() {
       setOwnedAbilities((currentOwned) => ({
         ...currentOwned,
         [type]: true,
+      }))
+      setAbilityStock((currentStock) => ({
+        ...currentStock,
+        [type]: currentStock[type] + 1,
       }))
       if (currentUser?.id) {
         void fetch('/api/currency', {
@@ -924,16 +993,24 @@ function App() {
   }
 
   const handleEquipAbility = (type) => {
-    const isStarterAbility = ABILITY_CONFIGS[type].maxUses > 0
-    if ((!ownedAbilities[type] && !isStarterAbility) || equippedAbilities.includes(type) || equippedAbilities.length >= 3) {
+    const config = ABILITY_CONFIGS[type]
+    const isAvailable = config.maxUses > 0 || ownedAbilities[type] || abilityStock[type] > 0
+
+    if (!isAvailable) {
       return
     }
 
-    setEquippedAbilities((currentLoadout) => [...currentLoadout, type])
+    setEquippedAbilities((currentLoadout) => {
+      if (currentLoadout.includes(type) || currentLoadout.length >= 3) {
+        return currentLoadout
+      }
+
+      return [...currentLoadout, type]
+    })
   }
 
   const handleUnequipAbility = (type) => {
-    if (!equippedAbilities.includes(type) || equippedAbilities.length <= 1) {
+    if (!equippedAbilities.includes(type)) {
       return
     }
 
@@ -945,7 +1022,14 @@ function App() {
   }
 
   const finalizePlayerMove = (nextEnemyBoard, statusMessage, options = {}) => {
-    const winner = isFleetSunk(game.enemyLayout, nextEnemyBoard) ? 'player' : null
+    const enemyFleetSunk = isFleetSunk(game.enemyLayout, nextEnemyBoard)
+    const playerFleetSunk = isFleetSunk(game.playerLayout, options.nextPlayerBoard || game.playerBoard)
+    const winner = game.subGameMode === 'anti'
+      ? (enemyFleetSunk ? 'enemy' : playerFleetSunk ? 'player' : null)
+      : (enemyFleetSunk ? 'player' : playerFleetSunk ? 'enemy' : null)
+    const winnerMessage = winner === 'player'
+      ? game.subGameMode === 'anti' ? 'Your fleet was sunk first. You win!' : 'You sank the enemy fleet. Victory!'
+      : game.subGameMode === 'anti' ? 'You sank the enemy fleet first. You lose.' : 'The enemy sank your fleet. Try a fresh match.'
 
     setGame((current) => ({
       ...current,
@@ -954,14 +1038,10 @@ function App() {
       playerTurn: false,
       roundStartedAt: Date.now(),
       winner,
-      status: winner ? 'You sank the enemy fleet. Victory!' : statusMessage,
+      status: winner ? winnerMessage : statusMessage,
     }))
 
-    if (winner === 'player') {
-      setWins((currentWins) => currentWins + 1)
-      const currencyReward = DIFFICULTY_OPTIONS[difficulty].reward
-      awardBattleCurrency()
-      void persistWin(currencyReward)
+    if (winner) {
       return
     }
 
@@ -1018,7 +1098,12 @@ function App() {
           setRecentHit((current) => (current?.id === enemyHitId ? null : current))
         }, 900)
 
-        const enemyWinner = isFleetSunk(current.playerLayout, nextPlayerBoard) ? 'enemy' : null
+        const enemyFleetSunk = isFleetSunk(current.enemyLayout, current.enemyBoard)
+        const playerFleetSunk = isFleetSunk(current.playerLayout, nextPlayerBoard)
+        const enemyWinner = current.subGameMode === 'anti'
+          ? (playerFleetSunk ? 'player' : enemyFleetSunk ? 'enemy' : null)
+          : (playerFleetSunk ? 'enemy' : enemyFleetSunk ? 'player' : null)
+        const playerWon = enemyWinner === 'player'
 
         return {
           ...current,
@@ -1027,7 +1112,9 @@ function App() {
           roundStartedAt: Date.now(),
           winner: enemyWinner || current.winner,
           status: enemyWinner
-            ? 'The enemy sank your fleet. Try a fresh match.'
+            ? current.subGameMode === 'anti'
+              ? (playerWon ? 'Your fleet was sunk first. You win!' : 'You sank the enemy fleet first. You lose.')
+              : (playerWon ? 'The enemy fleet is down. Victory!' : 'The enemy sank your fleet. Try a fresh match.')
             : enemyMove.ability
               ? `${enemyMove.ability.name}: ${enemyHit ? 'The barrage found a hit.' : 'The barrage missed your fleet.'}`
             : enemyHit
@@ -1076,6 +1163,15 @@ function App() {
     }, 900)
 
     finalizePlayerMove(nextEnemyBoard, hit ? 'Direct hit! The enemy is taking damage.' : 'Missed the target. The enemy retaliates.')
+  }
+
+  const handleEnemyBoardContextMenu = (event) => {
+    if (targetingAbility !== 'leviathansVerdict') {
+      return
+    }
+
+    event.preventDefault()
+    setLeviathansOrientation((current) => current === 'horizontal' ? 'vertical' : 'horizontal')
   }
 
   const getThreeTileShipCoords = (enemyLayout) => {
@@ -1166,14 +1262,17 @@ function App() {
         return
       }
 
-      const requiresTargeting = type === 'cross' || type === 'finalSalvo'
+      const requiresTargeting = type === 'cross' || type === 'finalSalvo' || type === 'leviathansVerdict'
       if (requiresTargeting && (targetRow === null || targetCol === null)) {
+        if (type === 'leviathansVerdict') {
+          setLeviathansOrientation('horizontal')
+        }
         setTargetingAbility(type)
         return
       }
 
       const activePlayer = getMultiplayerPlayerState(multiplayerGame, currentUser?.email || currentUser?.username || 'guest')
-      const nextRoom = applyMultiplayerAbility(multiplayerGame, activePlayer?.id, type, targetRow, targetCol)
+      const nextRoom = applyMultiplayerAbility(multiplayerGame, activePlayer?.id, type, targetRow, targetCol, leviathansOrientation)
       if (nextRoom === multiplayerGame) {
         return
       }
@@ -1198,8 +1297,11 @@ function App() {
     }
 
     // Check if ability requires targeting
-    const requiresTargeting = (type === 'cross' || type === 'finalSalvo')
+    const requiresTargeting = type === 'cross' || type === 'finalSalvo' || type === 'leviathansVerdict'
     if (requiresTargeting && (targetRow === null || targetCol === null)) {
+      if (type === 'leviathansVerdict') {
+        setLeviathansOrientation('horizontal')
+      }
       setTargetingAbility(type)
       return
     }
@@ -1248,6 +1350,9 @@ function App() {
     }
     if (type === 'finalSalvo') {
       coords = Array.from({ length: GRID_SIZE }, (_, targetCol) => [row, targetCol])
+    }
+    if (type === 'leviathansVerdict') {
+      coords = getLeviathansVerdictPattern(row, col, leviathansOrientation)
     }
     if (type === 'radarScan') coords = game.enemyLayout.flatMap((boardRow, targetRow) => boardRow.map((cell, targetCol) => cell === 'ship' ? [targetRow, targetCol] : null).filter(Boolean)).filter(([targetRow, targetCol]) => game.enemyBoard[targetRow][targetCol] === 'water').slice(0, 3)
     if (type === 'spyPlane') {
@@ -1328,22 +1433,29 @@ function App() {
     setIsLoggedIn(false)
   }
 
-  const startPlacementFlow = (nextDifficulty = difficulty) => {
+  const startPlacementFlow = (nextDifficulty = difficulty, nextSubGameMode = subGameMode) => {
     setDifficulty(nextDifficulty)
+    setSubGameMode(nextSubGameMode)
+    setMatchTimeLeft(nextSubGameMode === 'blitz' ? BLITZ_DURATION_SECONDS : null)
     setPlacementBoard(createEmptyBoard())
     setPlacementIndex(0)
     setPlacementOrientation('horizontal')
     setPlacementActive(true)
+    setCurrencyNotice(null)
     setHoveredPlacement(null)
     setAbilityCooldowns(createAbilityMap(() => 0))
     setAbilityUses(createAbilityMap((config, type) => equippedAbilities.includes(type) ? config.maxUses + abilityStock[type] : 0))
     setUsedAbilityTypes([])
     setDefenseCharges(0)
-    setGame({ ...createGameState(nextDifficulty), status: 'Place your fleet before the match starts.' })
+    setGame({ ...createGameState(nextDifficulty, null, null, nextSubGameMode), status: 'Place your fleet before the match starts.' })
   }
 
   const handleDifficultySelect = (nextDifficulty) => {
     startPlacementFlow(nextDifficulty)
+  }
+
+  const handleSubGameModeSelect = (nextSubGameMode) => {
+    startPlacementFlow(difficulty, nextSubGameMode)
   }
 
   const handleReset = () => {
@@ -1368,7 +1480,8 @@ function App() {
     const nextPlacementIndex = placementIndex + 1
     if (nextPlacementIndex >= SHIP_SIZES.length) {
       const enemyFleet = createFleetBoard()
-      setGame(createGameState(difficulty, placedBoard, enemyFleet.board))
+      setGame({ ...createGameState(difficulty, placedBoard, enemyFleet.board, subGameMode), matchStartedAt: Date.now() })
+      setMatchTimeLeft(subGameMode === 'blitz' ? BLITZ_DURATION_SECONDS : null)
       setAbilityCooldowns(createAbilityMap(() => 0))
       setAbilityUses(createAbilityMap((config, type) => equippedAbilities.includes(type) ? config.maxUses + abilityStock[type] : 0))
       setUsedAbilityTypes([])
@@ -1592,6 +1705,31 @@ function App() {
     const timer = window.setInterval(updateRoundTimer, 250)
     return () => window.clearInterval(timer)
   }, [currentView, placementActive, gameMode, game.playerTurn, game.winner, game.roundStartedAt])
+
+  useEffect(() => {
+    if (currentView !== 'game' || placementActive || gameMode !== 'single' || subGameMode !== 'blitz' || !game.matchStartedAt || game.winner) {
+      return undefined
+    }
+
+    const updateBlitzTimer = () => {
+      const elapsedSeconds = Math.floor((Date.now() - game.matchStartedAt) / 1000)
+      const nextTimeLeft = Math.max(0, BLITZ_DURATION_SECONDS - elapsedSeconds)
+      setMatchTimeLeft(nextTimeLeft)
+
+      if (nextTimeLeft === 0) {
+        setGame((current) => ({
+          ...current,
+          winner: 'enemy',
+          playerTurn: false,
+          status: current.subGameMode === 'anti' ? 'Time expired. Your fleet survived, so you lose.' : 'Time expired. The enemy wins the Blitz match.',
+        }))
+      }
+    }
+
+    updateBlitzTimer()
+    const timer = window.setInterval(updateBlitzTimer, 250)
+    return () => window.clearInterval(timer)
+  }, [currentView, placementActive, gameMode, subGameMode, game.matchStartedAt, game.winner])
 
   useEffect(() => {
     if (currentView !== 'game' || placementActive || gameMode !== 'multiplayer' || !multiplayerGame || multiplayerGame.winner) {
@@ -1834,6 +1972,14 @@ function App() {
                       <span>Battle currency</span>
                       <strong>{battleCurrency}</strong>
                     </div>
+                    <div className="profile-win-box">
+                      <span>Normal ELO</span>
+                      <strong>{normalElo}</strong>
+                    </div>
+                    <div className="profile-win-box">
+                      <span>Blitz ELO</span>
+                      <strong>{blitzElo}</strong>
+                    </div>
                   </div>
                 </div>
               )}
@@ -1863,6 +2009,27 @@ function App() {
                 type="button"
                 className={`difficulty-pill ${difficulty === value ? 'active' : ''}`}
                 onClick={() => handleDifficultySelect(value)}
+              >
+                <strong>{settings.label}</strong>
+                <span>{settings.description}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section className="difficulty-card">
+          <div>
+            <p className="eyebrow">Choose a ruleset</p>
+            <h2>Game mode</h2>
+            <p className="lede small">Normal rewards standard ELO, Anti-Battleship reverses the win condition, and Blitz uses a 1:30 match clock.</p>
+          </div>
+          <div className="difficulty-pills" role="group" aria-label="Game modes">
+            {Object.entries(SUB_GAME_MODES).map(([value, settings]) => (
+              <button
+                key={value}
+                type="button"
+                className={`difficulty-pill ${subGameMode === value ? 'active' : ''}`}
+                onClick={() => handleSubGameModeSelect(value)}
               >
                 <strong>{settings.label}</strong>
                 <span>{settings.description}</span>
@@ -1933,11 +2100,22 @@ function App() {
             <span>Status</span>
             <strong>{game.winner === 'player' ? 'Victory' : game.winner === 'enemy' ? 'Defeat' : game.winner === 'draw' ? 'Draw' : 'Live fire'}</strong>
           </article>
+          <article className="stat-card">
+            <span>{subGameMode === 'blitz' ? 'Blitz time' : 'Normal ELO'}</span>
+            <strong>{subGameMode === 'blitz' ? `${Math.floor((matchTimeLeft ?? BLITZ_DURATION_SECONDS) / 60)}:${String((matchTimeLeft ?? BLITZ_DURATION_SECONDS) % 60).padStart(2, '0')}` : normalElo}</strong>
+          </article>
           <article className={`stat-card timer-card ${roundTimeLeft <= 5 ? 'timer-warning' : ''}`}>
             <span>Round time</span>
             <strong>0:{String(roundTimeLeft).padStart(2, '0')}</strong>
           </article>
         </section>
+
+        {currencyNotice && game.winner === 'player' && (
+          <div className="currency-win-notice" role="status">
+            <strong>Victory reward: +{currencyNotice.amount.toLocaleString()} battle currency</strong>
+            <span>{currencyNotice.difficulty} · {currencyNotice.mode}</span>
+          </div>
+        )}
 
         {showLeaderboard && (
           <div className="leaderboard-overlay" onClick={() => setShowLeaderboard(false)}>
@@ -1945,6 +2123,29 @@ function App() {
               <div className="board-heading">
                 <h2>Leaderboard</h2>
                 <p>Top 100 players ranked by wins. Your place is shown at the bottom when you are outside the top 100.</p>
+              </div>
+              <div className="mode-actions">
+                <button type="button" className={`ghost-button ${eloLeaderboardMode === 'normal-elo' ? 'active-mode' : ''}`} onClick={() => setEloLeaderboardMode('normal-elo')}>Normal ELO</button>
+                <button type="button" className={`ghost-button ${eloLeaderboardMode === 'blitz-elo' ? 'active-mode' : ''}`} onClick={() => setEloLeaderboardMode('blitz-elo')}>Blitz ELO</button>
+              </div>
+              <div className="leaderboard-list">
+                {eloLeaderboard.map((entry) => (
+                  <div key={`elo-${entry.id}`} className={`leaderboard-row ${currentUser?.id === entry.id ? 'leaderboard-self' : ''}`}>
+                    <span className="leaderboard-rank">#{entry.rank}</span>
+                    <span className="leaderboard-name">{entry.username}</span>
+                    <span className="leaderboard-score">{entry.elo} ELO</span>
+                  </div>
+                ))}
+                {yourEloLeaderboardEntry && (
+                  <div className="leaderboard-row leaderboard-self">
+                    <span className="leaderboard-rank">#{yourEloLeaderboardEntry.rank}</span>
+                    <span className="leaderboard-name">{yourEloLeaderboardEntry.username}</span>
+                    <span className="leaderboard-score">{yourEloLeaderboardEntry.elo} ELO</span>
+                  </div>
+                )}
+              </div>
+              <div className="board-heading">
+                <h3>Wins</h3>
               </div>
               <div className="leaderboard-list">
                 {leaderboard.map((entry) => (
@@ -2001,36 +2202,80 @@ function App() {
                 <p>Purchase ability charges with battle currency. Starter abilities are free to use; purchased abilities unlock with the first buy.</p>
               </div>
               <div className="shop-balance">Balance: <strong>{battleCurrency}</strong></div>
-              <div className="shop-loadout">Equipped: <strong>{equippedAbilities.map((type) => ABILITY_CONFIGS[type].label).join(', ')}</strong></div>
-              <div className="shop-list">
-                {ABILITY_CATEGORIES.map((category) => (
-                  <section key={category} className="shop-category">
-                    <h3>{category}</h3>
-                    <div className="shop-category-list">
-                      {Object.entries(ABILITY_CONFIGS)
-                        .filter(([, config]) => config.category === category)
-                        .map(([type, config]) => (
-                          <div key={type} className="shop-row">
-                            <div>
-                              <strong>{config.label}</strong>
-                              <p>{config.description}</p>
-                              <small>{ownedAbilities[type] ? 'Owned' : 'Not owned'} · Stored charges: {abilityStock[type]} / {config.maxUses}</small>
+              <div className="shop-layout">
+                <div className="shop-list">
+                  <input
+                    type="search"
+                    className="equipped-search shop-search"
+                    value={equippedAbilitySearch}
+                    onChange={(event) => setEquippedAbilitySearch(event.target.value)}
+                    placeholder="Search all abilities"
+                    aria-label="Search all abilities in the shop"
+                  />
+                  {ABILITY_CATEGORIES.map((category) => (
+                    <section key={category} className="shop-category">
+                      <h3>{category}</h3>
+                      <div className="shop-category-list">
+                        {Object.entries(ABILITY_CONFIGS)
+                          .filter(([, config]) => config.category === category && config.label.toLowerCase().includes(equippedAbilitySearch.trim().toLowerCase()))
+                          .map(([type, config]) => (
+                            <div key={type} className="shop-row">
+                              <div>
+                                <strong>{config.label}</strong>
+                                <p>{config.description}</p>
+                                <small>{ownedAbilities[type] ? 'Owned' : 'Not owned'} · Stored charges: {abilityStock[type]} / {config.maxUses}</small>
+                              </div>
+                              <div className="shop-actions">
+                                <button
+                                  type="button"
+                                  className={equippedAbilities.includes(type) ? 'ghost-button' : 'primary-button'}
+                                  onClick={() => equippedAbilities.includes(type) ? handleUnequipAbility(type) : handleEquipAbility(type)}
+                                  disabled={(!ownedAbilities[type] && config.maxUses === 0 && abilityStock[type] <= 0) || (!equippedAbilities.includes(type) && equippedAbilities.length >= 3)}
+                                >
+                                  {equippedAbilities.includes(type) ? 'Unequip' : 'Equip'}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="primary-button"
+                                  onClick={() => handleBuyAbility(type)}
+                                  disabled={config.maxUses > 0 && abilityStock[type] >= config.maxUses || battleCurrency < config.price}
+                                >
+                                  {config.maxUses > 0 && abilityStock[type] >= config.maxUses ? 'Max charges' : !ownedAbilities[type] ? `Buy ability · ${config.price.toLocaleString()}` : `Buy charge · ${config.price.toLocaleString()}`}
+                                </button>
+                              </div>
                             </div>
-                            <div className="shop-actions">
-                              <button
-                                type="button"
-                                className="primary-button"
-                                onClick={() => handleBuyAbility(type)}
-                                disabled={abilityStock[type] >= config.maxUses && (ownedAbilities[type] || config.maxUses > 0) || battleCurrency < config.price}
-                              >
-                                {abilityStock[type] >= config.maxUses ? 'Max charges' : !ownedAbilities[type] && config.maxUses === 0 ? `Buy ability · ${config.price.toLocaleString()}` : `Buy charge · ${config.price.toLocaleString()}`}
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                    </div>
-                  </section>
-                ))}
+                          ))}
+                      </div>
+                    </section>
+                  ))}
+                </div>
+                <aside className="equipped-abilities" aria-label="Equipped abilities">
+                  <div className="equipped-abilities-heading">
+                    <h3>Equipped</h3>
+                    <span>{equippedAbilities.length}/3</span>
+                  </div>
+                  <div className="equipped-abilities-list">
+                    {equippedAbilities.length === 0 ? (
+                      <p className="equipped-empty">No abilities equipped</p>
+                    ) : equippedAbilities.map((type) => (
+                      <div key={type} className="equipped-ability-card">
+                        <div>
+                          <strong>{ABILITY_CONFIGS[type].label}</strong>
+                          <small>{abilityStock[type]} stored charge{abilityStock[type] === 1 ? '' : 's'}</small>
+                        </div>
+                        <button
+                          type="button"
+                          className="equipped-remove"
+                          onClick={() => handleUnequipAbility(type)}
+                          aria-label={`Unequip ${ABILITY_CONFIGS[type].label}`}
+                          title={`Unequip ${ABILITY_CONFIGS[type].label}`}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </aside>
               </div>
             </section>
           </div>
@@ -2181,21 +2426,30 @@ function App() {
               <article className="board-card">
                 <div className="board-heading">
                   <h2 className={`turn-heading ${game.playerTurn ? '' : 'active'}`}>Enemy waters</h2>
-                  <p>{targetingAbility ? `Click to target ${ABILITY_CONFIGS[targetingAbility].label.toLowerCase()}` : game.playerTurn ? `Choose one move in 0:${String(roundTimeLeft).padStart(2, '0')}.` : 'The enemy is taking its move.'}</p>
+                  <p>{targetingAbility === 'leviathansVerdict'
+                    ? `Click to choose the ${leviathansOrientation} half. Right-click to rotate.`
+                    : targetingAbility
+                      ? `Click to target ${ABILITY_CONFIGS[targetingAbility].label.toLowerCase()}`
+                      : game.playerTurn ? `Choose one move in 0:${String(roundTimeLeft).padStart(2, '0')}.` : 'The enemy is taking its move.'}</p>
                 </div>
                 <div ref={enemyBoardRef} className={`board enemy-board ${targetingAbility ? 'targeting-mode' : ''}`} aria-label="Enemy waters grid">
                   {game.enemyBoard.map((row, rowIndex) =>
                     row.map((cell, colIndex) => {
                       const isShot = cell === 'hit' || cell === 'miss'
                       const isRecentHit = recentHit?.board === 'enemy' && recentHit.row === rowIndex && recentHit.col === colIndex
+                      const isLeviathansTarget = targetingAbility === 'leviathansVerdict' && hoveredEnemyTarget
+                        ? getLeviathansVerdictPattern(hoveredEnemyTarget[0], hoveredEnemyTarget[1], leviathansOrientation)
+                          .some(([targetRow, targetCol]) => targetRow === rowIndex && targetCol === colIndex)
+                        : false
 
                       return (
                         <button
                           key={`enemy-${rowIndex}-${colIndex}`}
                           type="button"
                           data-hit-coord={`${rowIndex}-${colIndex}`}
-                          className={`cell enemy-cell ${isShot ? (cell === 'hit' ? 'hit' : 'miss') : targetingAbility ? 'targeting-target' : hoveredEnemyTarget?.[0] === rowIndex && hoveredEnemyTarget?.[1] === colIndex ? 'targeted' : 'water'}`}
+                          className={`cell enemy-cell ${isLeviathansTarget ? 'leviathan-target' : isShot ? (cell === 'hit' ? 'hit' : 'miss') : targetingAbility ? 'targeting-target' : hoveredEnemyTarget?.[0] === rowIndex && hoveredEnemyTarget?.[1] === colIndex ? 'targeted' : 'water'}`}
                           onClick={(event) => handlePlayerAttack(rowIndex, colIndex, event)}
+                          onContextMenu={handleEnemyBoardContextMenu}
                           onMouseEnter={() => setHoveredEnemyTarget([rowIndex, colIndex])}
                           onMouseLeave={() => setHoveredEnemyTarget(null)}
                           onFocus={() => setHoveredEnemyTarget([rowIndex, colIndex])}
@@ -2244,7 +2498,9 @@ function App() {
                     <span>{config.label}</span>
                     <small>
                       {targetingAbility === type
-                        ? 'Click a square to target'
+                        ? targetingAbility === 'leviathansVerdict'
+                          ? `Click to choose half · ${leviathansOrientation} · Right-click to rotate`
+                          : 'Click a square to target'
                         : abilityCooldowns[type] > 0
                           ? `Cooldown ${abilityCooldowns[type]} · ${abilityUses[type]} use${abilityUses[type] === 1 ? '' : 's'} left`
                         : usedTypeLimit
