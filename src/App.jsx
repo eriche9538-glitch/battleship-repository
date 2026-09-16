@@ -79,6 +79,12 @@ const ABILITY_CONFIGS = {
 }
 
 const ABILITY_CATEGORIES = ['Offensive', 'Recon', 'Defense', '☢']
+const ABILITY_CATEGORY_LABELS = {
+  Offensive: { icon: '⚔️', label: 'Offensive' },
+  Recon: { icon: '🔍', label: 'Recon' },
+  Defense: { icon: '🛡️', label: 'Defense' },
+  '☢': { icon: '☢️', label: 'Ultra' },
+}
 const STARTER_ABILITY_TYPES = ['cross', 'ship', 'line']
 
 const createAbilityMap = (getValue) => Object.fromEntries(
@@ -591,6 +597,7 @@ function App() {
   })
   const [usedAbilityTypes, setUsedAbilityTypes] = useState([])
   const [equippedAbilitySearch, setEquippedAbilitySearch] = useState('')
+  const [abilityShopCategory, setAbilityShopCategory] = useState('all')
   const [defenseCharges, setDefenseCharges] = useState(0)
   const [leaderboard, setLeaderboard] = useState([])
   const [yourLeaderboardEntry, setYourLeaderboardEntry] = useState(null)
@@ -2204,20 +2211,43 @@ function App() {
               <div className="shop-balance">Balance: <strong>{battleCurrency}</strong></div>
               <div className="shop-layout">
                 <div className="shop-list">
-                  <input
-                    type="search"
-                    className="equipped-search shop-search"
-                    value={equippedAbilitySearch}
-                    onChange={(event) => setEquippedAbilitySearch(event.target.value)}
-                    placeholder="Search all abilities"
-                    aria-label="Search all abilities in the shop"
-                  />
-                  {ABILITY_CATEGORIES.map((category) => (
+                  <div className="shop-toolbar">
+                    <input
+                      type="search"
+                      className="equipped-search shop-search"
+                      value={equippedAbilitySearch}
+                      onChange={(event) => setEquippedAbilitySearch(event.target.value)}
+                      placeholder="Search all abilities"
+                      aria-label="Search all abilities in the shop"
+                    />
+                    <div className="shop-category-filters" role="tablist" aria-label="Ability categories">
+                      {[
+                        'Offensive',
+                        'Recon',
+                        'Defense',
+                        '☢',
+                      ].map((category) => (
+                        <button
+                          key={category}
+                          type="button"
+                          role="tab"
+                          aria-selected={abilityShopCategory === category}
+                          className={`shop-category-filter ${abilityShopCategory === category ? 'active' : ''}`}
+                          onClick={() => setAbilityShopCategory(category)}
+                        >
+                          {ABILITY_CATEGORY_LABELS[category].icon} {ABILITY_CATEGORY_LABELS[category].label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {ABILITY_CATEGORIES.filter((category) => Object.entries(ABILITY_CONFIGS)
+                    .some(([, config]) => (abilityShopCategory === 'all' || config.category === abilityShopCategory) && config.category === category && config.label.toLowerCase().includes(equippedAbilitySearch.trim().toLowerCase())))
+                    .map((category) => (
                     <section key={category} className="shop-category">
-                      <h3>{category}</h3>
+                      <h3>{ABILITY_CATEGORY_LABELS[category].icon} {ABILITY_CATEGORY_LABELS[category].label}</h3>
                       <div className="shop-category-list">
                         {Object.entries(ABILITY_CONFIGS)
-                          .filter(([, config]) => config.category === category && config.label.toLowerCase().includes(equippedAbilitySearch.trim().toLowerCase()))
+                          .filter(([, config]) => (abilityShopCategory === 'all' || config.category === abilityShopCategory) && config.category === category && config.label.toLowerCase().includes(equippedAbilitySearch.trim().toLowerCase()))
                           .map(([type, config]) => (
                             <div key={type} className="shop-row">
                               <div>
@@ -2247,7 +2277,7 @@ function App() {
                           ))}
                       </div>
                     </section>
-                  ))}
+                    ))}
                 </div>
                 <aside className="equipped-abilities" aria-label="Equipped abilities">
                   <div className="equipped-abilities-heading">

@@ -490,6 +490,11 @@
   outline-offset: 1px;
 }
 
+.shop-search {
+  box-sizing: border-box;
+  margin-bottom: 0;
+}
+
 .equipped-abilities-list {
   display: grid;
   gap: 8px;
@@ -553,6 +558,45 @@
 .shop-list {
   display: grid;
   gap: 10px;
+}
+
+.shop-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: grid;
+  gap: 10px;
+  margin: -20px 0 4px;
+  padding: 20px 0 10px;
+  background: var(--panel-background, rgba(15, 23, 42, 0.96));
+  box-shadow: 0 8px 12px var(--panel-background, rgba(15, 23, 42, 0.96));
+}
+
+.shop-category-filters {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.shop-category-filter {
+  min-height: 34px;
+  padding: 7px 8px;
+  border: 1px solid var(--panel-border, rgba(255, 255, 255, 0.14));
+  border-radius: 9px;
+  background: var(--surface-background, rgba(255, 255, 255, 0.06));
+  color: var(--text-secondary, #cbd5e1);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.shop-category-filter:hover,
+.shop-category-filter:focus-visible,
+.shop-category-filter.active {
+  border-color: var(--accent, #7dd3fc);
+  background: var(--accent, #7dd3fc);
+  color: #082f49;
 }
 
 .shop-category {
